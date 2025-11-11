@@ -9,7 +9,9 @@ Lexicon is a vocabulary learning application that teaches advanced GRE/SAT vocab
 - Removed user authentication - stats now persist in browser localStorage
 - Implemented PostgreSQL caching with 90-day TTL for Dictionary API responses
 - Redesigned database: universal word data in DB, user-specific data in localStorage
-- Expanded word list from 10 to 1985 curated GRE/SAT vocabulary words
+- Expanded word list from 10 to 2,320 curated GRE/SAT vocabulary words
+  - Initial 1,985 words from comprehensive GRE/SAT sources
+  - Added 335 advanced words with particularly interesting etymologies (Greek/Latin compounds, mythological origins, surprising histories)
 - Implemented missing_definitions table to track words where Dictionary API returns 404
 - Added backend-controlled retry logic with capped attempts (max 10) for random word selection
 - Ensures mutual exclusivity: words in missing_definitions are excluded from random selection
@@ -68,7 +70,9 @@ Preferred communication style: Simple, everyday language.
 - Database migrations managed through Drizzle Kit
 
 **Word Data Source:**
-- Curated word list (1985 GRE/SAT words) stored in JSON format and seeded into `curated_words` table
+- Curated word list (2,320 GRE/SAT words) stored in JSON format and seeded into `curated_words` table
+  - 1,985 words from comprehensive GRE/SAT prep sources
+  - 335 advanced words selected for particularly interesting etymologies
 - Integration with Dictionary API (`api.dictionaryapi.dev`) for fetching word definitions
 - Smart caching: definitions cached in PostgreSQL for 90 days, auto-refresh when stale
 - Fallback mechanism: serves stale cached data if API temporarily unavailable
