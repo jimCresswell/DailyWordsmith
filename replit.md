@@ -2,7 +2,13 @@
 
 ## Overview
 
-Lexicon is a vocabulary learning application that presents users with one advanced word per day. The application provides comprehensive information about each word including pronunciation, definitions, etymology, and contextual examples. Users can track their learning progress through statistics like daily streaks and total words learned. The app features a clean, educational-focused interface inspired by Duolingo's learning-centered design and Notion's information hierarchy.
+Lexicon is a vocabulary learning application that teaches advanced GRE/SAT vocabulary words. The app loads random words on demand with a refresh button, displays comprehensive information (pronunciation, definitions, etymology, examples), and caches word data in PostgreSQL for 90 days. User progress (streak, words learned, level) is stored locally in browser localStorage without backend authentication. The app features a clean, educational-focused interface inspired by Duolingo's learning-centered design and Notion's information hierarchy.
+
+**Recent Refactor (November 2025):**
+- Migrated from daily word to random word loading with refresh button
+- Removed user authentication - stats now persist in browser localStorage
+- Implemented PostgreSQL caching with 90-day TTL for Dictionary API responses
+- Redesigned database: universal word data in DB, user-specific data in localStorage
 
 ## User Preferences
 
@@ -47,54 +53,58 @@ Preferred communication style: Simple, everyday language.
 - RESTful API design pattern
 
 **API Structure:**
-- `/api/words/daily` - Fetches the daily word
-- `/api/words` - Retrieves all words
-- `/api/progress/stats` - Gets user progress statistics
-- `/api/progress` - Manages user learning progress
+- `/api/words/random` - Fetches a random word with fresh or cached definition
+- `/api/words` - Retrieves all words with definitions
+- `/api/words/:id` - Gets a specific word by ID
 
 **Data Layer:**
 - Drizzle ORM configured for PostgreSQL
-- Schema defines three main tables: users, words, user_progress
-- In-memory storage implementation (`MemStorage`) for development/testing
+- Schema defines two main tables: curated_words, word_definitions
+- PostgreSQL storage implementation with smart caching (90-day TTL)
 - Database migrations managed through Drizzle Kit
 
 **Word Data Source:**
-- Curated word list stored in JSON format (`curated-words.json`)
-- Integration with Dictionary API (`api.dictionaryapi.dev`) for fetching additional word data
-- Fallback mechanism: curated data serves as primary source, API enriches when available
+- Curated word list stored in JSON format (`curated-words.json`) and seeded into `curated_words` table
+- Integration with Dictionary API (`api.dictionaryapi.dev`) for fetching word definitions
+- Smart caching: definitions cached in PostgreSQL for 90 days, auto-refresh when stale
+- Fallback mechanism: serves stale cached data if API temporarily unavailable
 
 ### Database Schema
 
 **Tables:**
 
-1. **users**
-   - id (primary key, UUID)
-   - username (unique)
-   - password (hashed)
-
-2. **words**
-   - id (primary key, UUID)
-   - word (text)
-   - pronunciation (phonetic notation)
-   - partOfSpeech (grammatical category)
-   - definition (meaning)
-   - etymology (word origin)
-   - examples (array of usage examples)
+1. **curated_words**
+   - id (primary key, serial)
+   - word (text, unique)
    - difficulty (integer 1-10)
-   - dateAdded (timestamp)
 
-3. **user_progress**
-   - id (primary key, UUID)
-   - userId (foreign key to users)
-   - wordId (foreign key to words)
-   - learned (integer flag: 0 or 1)
-   - dateViewed (timestamp)
+2. **word_definitions**
+   - id (primary key, serial)
+   - word_id (foreign key to curated_words, unique constraint)
+   - pronunciation (phonetic notation)
+   - part_of_speech (grammatical category)
+   - definition (meaning)
+   - etymology (word origin, nullable)
+   - examples (array of usage examples)
+   - fetched_at (timestamp for TTL tracking)
+
+**LocalStorage Schema:**
+
+1. **lexicon_user_stats**
+   - wordsLearned (number)
+   - streak (number)
+   - level (number)
+   - lastVisit (ISO date string)
+
+2. **lexicon_word_views**
+   - Array of {wordId, viewedAt, learned}
 
 **Design Decisions:**
-- UUID primary keys for distributed-friendly IDs
+- Separated universal word data (DB) from user-specific data (localStorage)
+- Unique constraint on word_definitions.word_id ensures one-to-one relationship
+- 90-day TTL (fetched_at) enables automatic definition refresh without manual cleanup
 - Array type for examples allows flexible storage of multiple usage contexts
-- Difficulty scoring enables adaptive learning in future iterations
-- Progress tracking separated to allow many-to-many user-word relationships
+- localStorage eliminates need for backend authentication while preserving UX
 
 ### Architectural Patterns
 
