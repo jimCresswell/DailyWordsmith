@@ -1,22 +1,22 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Volume2, BookmarkPlus, Check, RefreshCw } from "lucide-react";
+import { Volume2, Bookmark, RefreshCw } from "lucide-react";
 import type { Word } from "@shared/schema";
 
 interface WordCardProps {
   word: Word;
-  onMarkLearned?: () => void;
+  onBookmark?: () => void;
   onRefresh?: () => void;
-  isLearned?: boolean;
+  isBookmarked?: boolean;
   isRefreshing?: boolean;
 }
 
 export function WordCard({ 
   word, 
-  onMarkLearned, 
+  onBookmark, 
   onRefresh, 
-  isLearned = false,
+  isBookmarked = false,
   isRefreshing = false 
 }: WordCardProps) {
   const handlePlayPronunciation = () => {
@@ -53,41 +53,42 @@ export function WordCard({
             </Badge>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          data-testid="button-bookmark"
-        >
-          <BookmarkPlus className="h-5 w-5" />
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onBookmark}
+            className={isBookmarked ? "text-primary" : ""}
+            aria-label={isBookmarked ? "Remove bookmark" : "Bookmark this word"}
+            data-testid="button-bookmark"
+          >
+            <Bookmark className={`h-5 w-5 ${isBookmarked ? 'fill-current' : ''}`} />
+            <span className="sr-only">
+              {isBookmarked ? "Remove bookmark" : "Bookmark this word"}
+            </span>
+          </Button>
+        </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div>
           <h2 className="text-sm font-semibold text-muted-foreground mb-2">DEFINITION</h2>
           <p className="text-lg leading-relaxed" data-testid="text-definition">
             {word.definition}
           </p>
         </div>
+
+        {word.etymology && (
+          <div>
+            <h2 className="text-sm font-semibold text-muted-foreground mb-2">ETYMOLOGY</h2>
+            <p className="text-base leading-relaxed text-muted-foreground" data-testid="text-etymology">
+              {word.etymology}
+            </p>
+          </div>
+        )}
       </div>
 
-      <div className="pt-4 flex gap-3 flex-wrap">
-        <Button
-          onClick={onMarkLearned}
-          disabled={isLearned}
-          className="flex-1 md:flex-none md:w-auto"
-          data-testid="button-mark-learned"
-        >
-          {isLearned ? (
-            <>
-              <Check className="h-4 w-4 mr-2" />
-              Marked as Learned
-            </>
-          ) : (
-            "Mark as Learned"
-          )}
-        </Button>
-        
+      <div className="pt-4 flex gap-3">
         {onRefresh && (
           <Button
             onClick={onRefresh}

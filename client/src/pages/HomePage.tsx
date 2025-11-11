@@ -3,42 +3,39 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { WordCard } from "@/components/WordCard";
 import { EtymologyTimeline } from "@/components/EtymologyTimeline";
 import { ExampleSentences } from "@/components/ExampleSentences";
-import { ProgressStats } from "@/components/ProgressStats";
-import { PastWordsGrid } from "@/components/PastWordsGrid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card } from "@/components/ui/card";
 import type { Word } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
-  getUserStats,
-  markWordAsLearned,
-  isWordLearned,
-  recordWordView,
-} from "@/lib/userStats";
+  toggleBookmark,
+  isWordBookmarked,
+  getBookmarkedWords,
+} from "@/lib/bookmarks";
 
 export default function HomePage() {
   const { toast } = useToast();
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
   const [activeTab, setActiveTab] = useState("today");
-  const [stats, setStats] = useState(getUserStats());
+  const [bookmarkedWordIds, setBookmarkedWordIds] = useState<string[]>([]);
 
-  // Fetch random word instead of daily word
+  // Fetch random word
   const { data: currentWord, isLoading: isWordLoading } = useQuery<Word>({
     queryKey: ["/api/words/random"],
   });
 
-  const { data: allWords, isLoading: isAllWordsLoading } = useQuery<Word[]>({
+  // Fetch all words for archive
+  const { data: allWords } = useQuery<Word[]>({
     queryKey: ["/api/words"],
   });
 
-  // Record word view when word loads
+  // Load bookmarks on mount
   useEffect(() => {
-    if (currentWord?.id) {
-      recordWordView(currentWord.id);
-      setStats(getUserStats()); // Refresh stats after recording view
-    }
-  }, [currentWord?.id]);
+    const bookmarks = getBookmarkedWords();
+    setBookmarkedWordIds(bookmarks.map((b) => b.wordId));
+  }, []);
 
   // Mutation to fetch a new random word
   const refreshWordMutation = useMutation({
@@ -48,8 +45,8 @@ export default function HomePage() {
     },
     onSuccess: (newWord) => {
       queryClient.setQueryData(["/api/words/random"], newWord);
-      setSelectedWord(null); // Reset selected word to show new current word
-      setActiveTab("today"); // Switch to today tab
+      setSelectedWord(null);
+      setActiveTab("today");
       toast({
         title: "New word loaded!",
         description: `Explore the word "${newWord.word}"`,
@@ -65,33 +62,37 @@ export default function HomePage() {
     },
   });
 
-  const handlePastWordClick = (word: Word) => {
+  const handleBookmarkWordClick = (word: Word) => {
     setSelectedWord(word);
-    setActiveTab("today"); // Switch to today tab to show the word
+    setActiveTab("today");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Mark word as learned
-  const handleMarkLearned = (wordId: string) => {
-    markWordAsLearned(wordId);
-    setStats(getUserStats()); // Refresh stats
+  // Toggle bookmark
+  const handleToggleBookmark = (wordId: string, word: string) => {
+    const nowBookmarked = toggleBookmark(wordId, word);
+    const bookmarks = getBookmarkedWords();
+    setBookmarkedWordIds(bookmarks.map((b) => b.wordId));
+    
     toast({
-      title: "Word learned!",
-      description: "Great job! Keep building your vocabulary.",
+      title: nowBookmarked ? "Bookmarked!" : "Bookmark removed",
+      description: nowBookmarked 
+        ? "Word saved to your bookmarks." 
+        : "Word removed from bookmarks.",
     });
   };
 
   const displayWord = selectedWord || currentWord;
 
+  // Get bookmarked words for display
+  const bookmarkedWords = allWords?.filter((w) => 
+    bookmarkedWordIds.includes(w.id)
+  ) || [];
+
   if (isWordLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-3xl mx-auto px-6 py-8 md:py-12 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-32" />
-            ))}
-          </div>
           <Skeleton className="h-96" />
         </div>
       </div>
@@ -114,12 +115,6 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-3xl mx-auto px-6 py-8 md:py-12 space-y-8 md:space-y-12">
-        <ProgressStats
-          streak={stats.streak}
-          wordsLearned={stats.wordsLearned}
-          currentLevel={stats.level}
-        />
-
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
@@ -129,8 +124,8 @@ export default function HomePage() {
             <TabsTrigger value="today" data-testid="tab-today">
               Current Word
             </TabsTrigger>
-            <TabsTrigger value="archive" data-testid="tab-archive">
-              Past Words
+            <TabsTrigger value="bookmarks" data-testid="tab-bookmarks">
+              Bookmarks
             </TabsTrigger>
           </TabsList>
 
@@ -139,17 +134,11 @@ export default function HomePage() {
               <>
                 <WordCard
                   word={displayWord}
-                  onMarkLearned={() => handleMarkLearned(displayWord.id)}
+                  onBookmark={() => handleToggleBookmark(displayWord.id, displayWord.word)}
                   onRefresh={() => refreshWordMutation.mutate()}
-                  isLearned={isWordLearned(displayWord.id)}
+                  isBookmarked={bookmarkedWordIds.includes(displayWord.id)}
                   isRefreshing={refreshWordMutation.isPending}
                 />
-
-                {displayWord.etymology && (
-                  <EtymologyTimeline
-                    etymology={displayWord.etymology}
-                  />
-                )}
 
                 {displayWord.examples && displayWord.examples.length > 0 && (
                   <ExampleSentences
@@ -161,18 +150,40 @@ export default function HomePage() {
             )}
           </TabsContent>
 
-          <TabsContent value="archive" className="mt-6">
-            {isAllWordsLoading ? (
+          <TabsContent value="bookmarks" className="mt-6">
+            {bookmarkedWords.length === 0 ? (
+              <Card className="p-12 text-center">
+                <p className="text-muted-foreground">
+                  No bookmarked words yet. Bookmark interesting words to save them here!
+                </p>
+              </Card>
+            ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <Skeleton key={i} className="h-32" />
+                {bookmarkedWords.map((word) => (
+                  <Card
+                    key={word.id}
+                    className="p-4 cursor-pointer hover-elevate active-elevate-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                    onClick={() => handleBookmarkWordClick(word)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleBookmarkWordClick(word);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`View word ${word.word}`}
+                    data-testid={`bookmark-card-${word.id}`}
+                  >
+                    <h3 className="text-xl font-bold mb-2" data-testid={`bookmark-word-${word.id}`}>
+                      {word.word}
+                    </h3>
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {word.definition}
+                    </p>
+                  </Card>
                 ))}
               </div>
-            ) : (
-              <PastWordsGrid
-                words={allWords?.filter((w) => w.id !== currentWord?.id) || []}
-                onWordClick={handlePastWordClick}
-              />
             )}
           </TabsContent>
         </Tabs>
