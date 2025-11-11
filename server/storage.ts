@@ -1,166 +1,160 @@
-import { type User, type InsertUser, type Word, type InsertWord, type UserProgress, type InsertUserProgress } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
+import { eq, sql } from "drizzle-orm";
+import {
+  type CuratedWord,
+  type InsertCuratedWord,
+  type WordDefinition,
+  type InsertWordDefinition,
+  type Word,
+  curatedWords,
+  wordDefinitions,
+} from "@shared/schema";
 
-export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  
-  getWord(id: string): Promise<Word | undefined>;
-  getWordByWord(word: string): Promise<Word | undefined>;
-  createWord(word: InsertWord): Promise<Word>;
-  getAllWords(): Promise<Word[]>;
-  getWordsByDifficulty(minDifficulty: number): Promise<Word[]>;
-  
-  getUserProgress(userId: string): Promise<UserProgress[]>;
-  getWordProgress(userId: string, wordId: string): Promise<UserProgress | undefined>;
-  createUserProgress(progress: InsertUserProgress): Promise<UserProgress>;
-  updateUserProgress(id: string, learned: number): Promise<UserProgress | undefined>;
-  getLearnedWordsCount(userId: string): Promise<number>;
-  getStreak(userId: string): Promise<number>;
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is not set");
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private words: Map<string, Word>;
-  private userProgress: Map<string, UserProgress>;
+const sqlClient = neon(process.env.DATABASE_URL);
+const db = drizzle(sqlClient);
 
-  constructor() {
-    this.users = new Map();
-    this.words = new Map();
-    this.userProgress = new Map();
-  }
+const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000; // 90 days in milliseconds
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
+export interface IStorage {
+  // Curated words operations
+  getCuratedWord(id: string): Promise<CuratedWord | undefined>;
+  getCuratedWordByText(word: string): Promise<CuratedWord | undefined>;
+  getAllCuratedWords(): Promise<CuratedWord[]>;
+  getRandomCuratedWord(): Promise<CuratedWord | undefined>;
+  
+  // Word definitions operations
+  getDefinition(wordId: string): Promise<WordDefinition | undefined>;
+  createDefinition(definition: InsertWordDefinition): Promise<WordDefinition>;
+  updateDefinition(id: string, definition: Partial<InsertWordDefinition>): Promise<WordDefinition | undefined>;
+  upsertDefinition(wordId: string, definition: Omit<InsertWordDefinition, 'wordId'>): Promise<WordDefinition>;
+  isDefinitionStale(definition: WordDefinition): boolean;
+  
+  // Combined operations
+  getWordWithDefinition(wordId: string): Promise<Word | undefined>;
+  getRandomWordWithDefinition(): Promise<Word | undefined>;
+}
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
-  }
-
-  async getWord(id: string): Promise<Word | undefined> {
-    return this.words.get(id);
-  }
-
-  async getWordByWord(word: string): Promise<Word | undefined> {
-    return Array.from(this.words.values()).find(
-      (w) => w.word.toLowerCase() === word.toLowerCase(),
-    );
-  }
-
-  async createWord(insertWord: InsertWord): Promise<Word> {
-    const id = randomUUID();
-    const word: Word = { 
-      id,
-      word: insertWord.word,
-      pronunciation: insertWord.pronunciation ?? null,
-      partOfSpeech: insertWord.partOfSpeech ?? null,
-      definition: insertWord.definition,
-      etymology: insertWord.etymology ?? null,
-      examples: insertWord.examples ?? null,
-      difficulty: insertWord.difficulty,
-      dateAdded: new Date()
-    };
-    this.words.set(id, word);
+export class PostgresStorage implements IStorage {
+  // Curated words operations
+  async getCuratedWord(id: string): Promise<CuratedWord | undefined> {
+    const [word] = await db
+      .select()
+      .from(curatedWords)
+      .where(eq(curatedWords.id, id))
+      .limit(1);
     return word;
   }
 
-  async getAllWords(): Promise<Word[]> {
-    return Array.from(this.words.values()).sort((a, b) => {
-      const dateA = a.dateAdded ? new Date(a.dateAdded).getTime() : 0;
-      const dateB = b.dateAdded ? new Date(b.dateAdded).getTime() : 0;
-      return dateB - dateA;
-    });
+  async getCuratedWordByText(word: string): Promise<CuratedWord | undefined> {
+    const [result] = await db
+      .select()
+      .from(curatedWords)
+      .where(sql`LOWER(${curatedWords.word}) = LOWER(${word})`)
+      .limit(1);
+    return result;
   }
 
-  async getWordsByDifficulty(minDifficulty: number): Promise<Word[]> {
-    return Array.from(this.words.values()).filter(
-      (word) => word.difficulty >= minDifficulty,
-    );
+  async getAllCuratedWords(): Promise<CuratedWord[]> {
+    return await db.select().from(curatedWords);
   }
 
-  async getUserProgress(userId: string): Promise<UserProgress[]> {
-    return Array.from(this.userProgress.values()).filter(
-      (progress) => progress.userId === userId,
-    );
+  async getRandomCuratedWord(): Promise<CuratedWord | undefined> {
+    const [word] = await db
+      .select()
+      .from(curatedWords)
+      .orderBy(sql`RANDOM()`)
+      .limit(1);
+    return word;
   }
 
-  async getWordProgress(userId: string, wordId: string): Promise<UserProgress | undefined> {
-    return Array.from(this.userProgress.values()).find(
-      (progress) => progress.userId === userId && progress.wordId === wordId,
-    );
+  // Word definitions operations
+  async getDefinition(wordId: string): Promise<WordDefinition | undefined> {
+    const [definition] = await db
+      .select()
+      .from(wordDefinitions)
+      .where(eq(wordDefinitions.wordId, wordId))
+      .limit(1);
+    return definition;
   }
 
-  async createUserProgress(insertProgress: InsertUserProgress): Promise<UserProgress> {
-    const id = randomUUID();
-    const progress: UserProgress = {
-      id,
-      userId: insertProgress.userId ?? null,
-      wordId: insertProgress.wordId ?? null,
-      learned: insertProgress.learned ?? null,
-      dateViewed: new Date(),
-    };
-    this.userProgress.set(id, progress);
-    return progress;
+  async createDefinition(insertDef: InsertWordDefinition): Promise<WordDefinition> {
+    const [definition] = await db
+      .insert(wordDefinitions)
+      .values(insertDef)
+      .returning();
+    return definition;
   }
 
-  async updateUserProgress(id: string, learned: number): Promise<UserProgress | undefined> {
-    const progress = this.userProgress.get(id);
-    if (!progress) return undefined;
-    
-    const updated = { ...progress, learned };
-    this.userProgress.set(id, updated);
+  async updateDefinition(
+    id: string,
+    updates: Partial<InsertWordDefinition>
+  ): Promise<WordDefinition | undefined> {
+    const [updated] = await db
+      .update(wordDefinitions)
+      .set({ ...updates, fetchedAt: new Date() })
+      .where(eq(wordDefinitions.id, id))
+      .returning();
     return updated;
   }
 
-  async getLearnedWordsCount(userId: string): Promise<number> {
-    return Array.from(this.userProgress.values()).filter(
-      (progress) => progress.userId === userId && progress.learned === 1,
-    ).length;
+  async upsertDefinition(
+    wordId: string,
+    defData: Omit<InsertWordDefinition, 'wordId'>
+  ): Promise<WordDefinition> {
+    // Check if definition exists
+    const existing = await this.getDefinition(wordId);
+    
+    if (existing) {
+      // Update existing definition with fresh data
+      const [updated] = await db
+        .update(wordDefinitions)
+        .set({ ...defData, fetchedAt: new Date() })
+        .where(eq(wordDefinitions.wordId, wordId))
+        .returning();
+      return updated;
+    } else {
+      // Create new definition
+      return await this.createDefinition({ wordId, ...defData });
+    }
   }
 
-  async getStreak(userId: string): Promise<number> {
-    const progressList = Array.from(this.userProgress.values())
-      .filter((progress) => progress.userId === userId)
-      .sort((a, b) => {
-        const dateA = a.dateViewed ? new Date(a.dateViewed).getTime() : 0;
-        const dateB = b.dateViewed ? new Date(b.dateViewed).getTime() : 0;
-        return dateB - dateA;
-      });
+  isDefinitionStale(definition: WordDefinition): boolean {
+    const now = new Date().getTime();
+    const fetchedAt = new Date(definition.fetchedAt).getTime();
+    return now - fetchedAt > NINETY_DAYS_MS;
+  }
 
-    if (progressList.length === 0) return 0;
+  // Combined operations
+  async getWordWithDefinition(wordId: string): Promise<Word | undefined> {
+    const word = await this.getCuratedWord(wordId);
+    if (!word) return undefined;
 
-    let streak = 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const definition = await this.getDefinition(wordId);
+    if (!definition) return undefined;
 
-    for (const progress of progressList) {
-      if (!progress.dateViewed) break;
-      
-      const viewDate = new Date(progress.dateViewed);
-      viewDate.setHours(0, 0, 0, 0);
-      
-      const diffDays = Math.floor((today.getTime() - viewDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === streak) {
-        streak++;
-      } else {
-        break;
-      }
-    }
+    return {
+      id: word.id,
+      word: word.word,
+      difficulty: word.difficulty,
+      pronunciation: definition.pronunciation,
+      partOfSpeech: definition.partOfSpeech,
+      definition: definition.definition,
+      etymology: definition.etymology,
+      examples: definition.examples,
+    };
+  }
 
-    return streak;
+  async getRandomWordWithDefinition(): Promise<Word | undefined> {
+    const word = await this.getRandomCuratedWord();
+    if (!word) return undefined;
+
+    return await this.getWordWithDefinition(word.id);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new PostgresStorage();

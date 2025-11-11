@@ -1,16 +1,24 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Volume2, BookmarkPlus, Check } from "lucide-react";
+import { Volume2, BookmarkPlus, Check, RefreshCw } from "lucide-react";
 import type { Word } from "@shared/schema";
 
 interface WordCardProps {
   word: Word;
   onMarkLearned?: () => void;
+  onRefresh?: () => void;
   isLearned?: boolean;
+  isRefreshing?: boolean;
 }
 
-export function WordCard({ word, onMarkLearned, isLearned = false }: WordCardProps) {
+export function WordCard({ 
+  word, 
+  onMarkLearned, 
+  onRefresh, 
+  isLearned = false,
+  isRefreshing = false 
+}: WordCardProps) {
   const handlePlayPronunciation = () => {
     console.log("Playing pronunciation for:", word.word);
   };
@@ -63,11 +71,11 @@ export function WordCard({ word, onMarkLearned, isLearned = false }: WordCardPro
         </div>
       </div>
 
-      <div className="pt-4">
+      <div className="pt-4 flex gap-3 flex-wrap">
         <Button
           onClick={onMarkLearned}
           disabled={isLearned}
-          className="w-full md:w-auto"
+          className="flex-1 md:flex-none md:w-auto"
           data-testid="button-mark-learned"
         >
           {isLearned ? (
@@ -79,6 +87,18 @@ export function WordCard({ word, onMarkLearned, isLearned = false }: WordCardPro
             "Mark as Learned"
           )}
         </Button>
+        
+        {onRefresh && (
+          <Button
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            variant="outline"
+            data-testid="button-refresh-word"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? "Loading..." : "New Word"}
+          </Button>
+        )}
       </div>
     </Card>
   );

@@ -10,72 +10,80 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Word } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-
-interface ProgressStats {
-  wordsLearned: number;
-  streak: number;
-  level: number;
-}
+import {
+  getUserStats,
+  markWordAsLearned,
+  isWordLearned,
+  recordWordView,
+} from "@/lib/userStats";
 
 export default function HomePage() {
   const { toast } = useToast();
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
+  const [activeTab, setActiveTab] = useState("today");
+  const [stats, setStats] = useState(getUserStats());
 
-  const { data: dailyWord, isLoading: isDailyWordLoading } = useQuery<Word>({
-    queryKey: ["/api/words/daily"],
+  // Fetch random word instead of daily word
+  const { data: currentWord, isLoading: isWordLoading } = useQuery<Word>({
+    queryKey: ["/api/words/random"],
   });
 
   const { data: allWords, isLoading: isAllWordsLoading } = useQuery<Word[]>({
     queryKey: ["/api/words"],
   });
 
-  const { data: stats, isLoading: isStatsLoading } = useQuery<ProgressStats>({
-    queryKey: ["/api/progress/stats"],
-  });
+  // Record word view when word loads
+  useEffect(() => {
+    if (currentWord?.id) {
+      recordWordView(currentWord.id);
+      setStats(getUserStats()); // Refresh stats after recording view
+    }
+  }, [currentWord?.id]);
 
-  const { data: wordProgress } = useQuery<{ learned: number } | null>({
-    queryKey: ["/api/progress", dailyWord?.id],
-    enabled: !!dailyWord?.id,
-  });
-
-  const markLearnedMutation = useMutation({
-    mutationFn: async (wordId: string) => {
-      console.log("Marking word as learned:", wordId);
-      const response = await apiRequest("POST", "/api/progress", {
-        wordId,
-        userId: "demo-user",
-        learned: 1,
-      });
+  // Mutation to fetch a new random word
+  const refreshWordMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("GET", "/api/words/random");
       return response.json();
     },
-    onSuccess: (data) => {
-      console.log("Mark learned success:", data);
-      queryClient.invalidateQueries({ queryKey: ["/api/progress"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/progress/stats"] });
+    onSuccess: (newWord) => {
+      queryClient.setQueryData(["/api/words/random"], newWord);
+      setSelectedWord(null); // Reset selected word to show new current word
+      setActiveTab("today"); // Switch to today tab
       toast({
-        title: "Word learned!",
-        description: "Great job! Keep building your vocabulary.",
+        title: "New word loaded!",
+        description: `Explore the word "${newWord.word}"`,
       });
     },
     onError: (error) => {
-      console.error("Error marking word as learned:", error);
+      console.error("Error fetching new word:", error);
       toast({
         title: "Error",
-        description: "Failed to mark word as learned. Please try again.",
+        description: "Failed to load a new word. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  const isLearned = wordProgress?.learned === 1;
+  const handlePastWordClick = (word: Word) => {
+    setSelectedWord(word);
+    setActiveTab("today"); // Switch to today tab to show the word
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
-  const etymologySteps = dailyWord?.etymology
-    ? parseEtymologySteps(dailyWord.etymology)
-    : [];
+  // Mark word as learned
+  const handleMarkLearned = (wordId: string) => {
+    markWordAsLearned(wordId);
+    setStats(getUserStats()); // Refresh stats
+    toast({
+      title: "Word learned!",
+      description: "Great job! Keep building your vocabulary.",
+    });
+  };
 
-  const displayWord = selectedWord || dailyWord;
+  const displayWord = selectedWord || currentWord;
 
-  if (isDailyWordLoading || isStatsLoading) {
+  if (isWordLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-3xl mx-auto px-6 py-8 md:py-12 space-y-8">
@@ -90,11 +98,11 @@ export default function HomePage() {
     );
   }
 
-  if (!dailyWord) {
+  if (!currentWord) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
-          <h2 className="text-2xl font-bold">Unable to load daily word</h2>
+          <h2 className="text-2xl font-bold">Unable to load word</h2>
           <p className="text-muted-foreground">
             Please try refreshing the page.
           </p>
@@ -107,19 +115,19 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <div className="max-w-3xl mx-auto px-6 py-8 md:py-12 space-y-8 md:space-y-12">
         <ProgressStats
-          streak={stats?.streak || 0}
-          wordsLearned={stats?.wordsLearned || 0}
-          currentLevel={stats?.level || 1}
+          streak={stats.streak}
+          wordsLearned={stats.wordsLearned}
+          currentLevel={stats.level}
         />
 
         <Tabs
-          defaultValue="today"
+          value={activeTab}
+          onValueChange={setActiveTab}
           className="w-full"
-          onValueChange={() => setSelectedWord(null)}
         >
           <TabsList className="w-full md:w-auto" data-testid="tabs-navigation">
             <TabsTrigger value="today" data-testid="tab-today">
-              Today's Word
+              Current Word
             </TabsTrigger>
             <TabsTrigger value="archive" data-testid="tab-archive">
               Past Words
@@ -131,14 +139,15 @@ export default function HomePage() {
               <>
                 <WordCard
                   word={displayWord}
-                  onMarkLearned={() => markLearnedMutation.mutate(displayWord.id)}
-                  isLearned={displayWord.id === dailyWord.id ? isLearned : false}
+                  onMarkLearned={() => handleMarkLearned(displayWord.id)}
+                  onRefresh={() => refreshWordMutation.mutate()}
+                  isLearned={isWordLearned(displayWord.id)}
+                  isRefreshing={refreshWordMutation.isPending}
                 />
 
                 {displayWord.etymology && (
                   <EtymologyTimeline
                     etymology={displayWord.etymology}
-                    steps={etymologySteps}
                   />
                 )}
 
@@ -161,11 +170,8 @@ export default function HomePage() {
               </div>
             ) : (
               <PastWordsGrid
-                words={allWords?.filter((w) => w.id !== dailyWord?.id) || []}
-                onWordClick={(word) => {
-                  setSelectedWord(word);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
+                words={allWords?.filter((w) => w.id !== currentWord?.id) || []}
+                onWordClick={handlePastWordClick}
               />
             )}
           </TabsContent>
@@ -173,41 +179,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-}
-
-function parseEtymologySteps(etymology: string): Array<{
-  language: string;
-  period: string;
-  form: string;
-  meaning: string;
-}> {
-  const steps: Array<{
-    language: string;
-    period: string;
-    form: string;
-    meaning: string;
-  }> = [];
-
-  const patterns = [
-    /from (\w+) ([^,]+),?/gi,
-    /(\w+) ([^,]+)/gi,
-  ];
-
-  const matches = etymology.match(/from \w+ [^,]+/gi);
-  
-  if (matches && matches.length > 0) {
-    matches.forEach((match) => {
-      const parts = match.match(/from (\w+) (.+)/i);
-      if (parts) {
-        steps.push({
-          language: parts[1],
-          period: "Historical",
-          form: parts[2].replace(/['"]/g, ""),
-          meaning: parts[2].replace(/['"]/g, ""),
-        });
-      }
-    });
-  }
-
-  return steps;
 }

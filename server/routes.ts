@@ -1,8 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertWordSchema, insertUserProgressSchema } from "@shared/schema";
-import curatedWords from "./data/curated-words.json";
+import type { Word } from "@shared/schema";
 
 const DICTIONARY_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en";
 
@@ -37,7 +36,7 @@ async function fetchWordFromDictionary(word: string): Promise<DictionaryApiRespo
   }
 }
 
-function transformDictionaryData(data: DictionaryApiResponse, difficulty: number) {
+function transformDictionaryData(data: DictionaryApiResponse) {
   const pronunciation = data.phonetic || data.phonetics?.[0]?.text || "";
   const mainMeaning = data.meanings[0];
   const partOfSpeech = mainMeaning?.partOfSpeech || "";
@@ -53,90 +52,130 @@ function transformDictionaryData(data: DictionaryApiResponse, difficulty: number
   const etymology = data.origin || "";
 
   return {
-    word: data.word,
-    pronunciation,
-    partOfSpeech,
+    pronunciation: pronunciation || null,
+    partOfSpeech: partOfSpeech || null,
     definition,
     etymology: etymology || null,
     examples: examples.length > 0 ? examples.slice(0, 3) : null,
-    difficulty,
   };
 }
 
-async function getDailyWord(): Promise<any> {
-  const allWords = await storage.getAllWords();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+async function getWordWithFreshDefinition(wordId: string): Promise<Word | null> {
+  const curatedWord = await storage.getCuratedWord(wordId);
+  if (!curatedWord) return null;
+
+  // Check existing definition
+  const existingDef = await storage.getDefinition(wordId);
   
-  const todayWord = allWords.find((word) => {
-    if (!word.dateAdded) return false;
-    const wordDate = new Date(word.dateAdded);
-    wordDate.setHours(0, 0, 0, 0);
-    return wordDate.getTime() === today.getTime();
-  });
-
-  if (todayWord) {
-    return todayWord;
-  }
-
-  const unseenCuratedWords = curatedWords.filter(
-    (word) => !allWords.some((w) => w.word.toLowerCase() === word.word.toLowerCase())
-  );
-
-  if (unseenCuratedWords.length === 0) {
-    return allWords[0] || curatedWords[0];
-  }
-
-  const randomCuratedWord = unseenCuratedWords[Math.floor(Math.random() * unseenCuratedWords.length)];
-  
-  const dictionaryData = await fetchWordFromDictionary(randomCuratedWord.word);
-
-  let wordData;
-  if (dictionaryData) {
-    wordData = transformDictionaryData(dictionaryData, randomCuratedWord.difficulty);
-  } else {
-    wordData = {
-      word: randomCuratedWord.word,
-      pronunciation: randomCuratedWord.pronunciation,
-      partOfSpeech: randomCuratedWord.partOfSpeech,
-      definition: randomCuratedWord.definition,
-      etymology: randomCuratedWord.etymology || null,
-      examples: randomCuratedWord.examples || null,
-      difficulty: randomCuratedWord.difficulty,
+  // If definition exists and is fresh, return it
+  if (existingDef && !storage.isDefinitionStale(existingDef)) {
+    return {
+      id: curatedWord.id,
+      word: curatedWord.word,
+      difficulty: curatedWord.difficulty,
+      pronunciation: existingDef.pronunciation,
+      partOfSpeech: existingDef.partOfSpeech,
+      definition: existingDef.definition,
+      etymology: existingDef.etymology,
+      examples: existingDef.examples,
     };
   }
+
+  // Definition is stale or doesn't exist - fetch from API
+  const dictionaryData = await fetchWordFromDictionary(curatedWord.word);
   
-  const newWord = await storage.createWord(wordData);
-  return newWord;
+  if (dictionaryData) {
+    // Got fresh data from API - upsert it
+    const freshDefData = transformDictionaryData(dictionaryData);
+    const updatedDef = await storage.upsertDefinition(wordId, freshDefData);
+    
+    return {
+      id: curatedWord.id,
+      word: curatedWord.word,
+      difficulty: curatedWord.difficulty,
+      pronunciation: updatedDef.pronunciation,
+      partOfSpeech: updatedDef.partOfSpeech,
+      definition: updatedDef.definition,
+      etymology: updatedDef.etymology,
+      examples: updatedDef.examples,
+    };
+  } else if (existingDef) {
+    // API failed but we have stale data - return it anyway
+    console.warn(`Using stale definition for ${curatedWord.word} (API fetch failed)`);
+    return {
+      id: curatedWord.id,
+      word: curatedWord.word,
+      difficulty: curatedWord.difficulty,
+      pronunciation: existingDef.pronunciation,
+      partOfSpeech: existingDef.partOfSpeech,
+      definition: existingDef.definition,
+      etymology: existingDef.etymology,
+      examples: existingDef.examples,
+    };
+  }
+
+  // No definition available at all
+  return null;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.get("/api/words/daily", async (req, res) => {
+  // Get a random word
+  app.get("/api/words/random", async (_req, res) => {
     try {
-      const dailyWord = await getDailyWord();
-      if (!dailyWord) {
-        return res.status(404).json({ error: "Could not fetch daily word" });
+      const randomCuratedWord = await storage.getRandomCuratedWord();
+      if (!randomCuratedWord) {
+        return res.status(404).json({ error: "No words available" });
       }
-      res.json(dailyWord);
+
+      const word = await getWordWithFreshDefinition(randomCuratedWord.id);
+      if (!word) {
+        return res.status(404).json({ error: "Could not fetch word definition" });
+      }
+
+      res.json(word);
     } catch (error) {
-      console.error("Error getting daily word:", error);
+      console.error("Error getting random word:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
 
-  app.get("/api/words", async (req, res) => {
+  // Get all curated words (for archive/past words view)
+  app.get("/api/words", async (_req, res) => {
     try {
-      const words = await storage.getAllWords();
-      res.json(words);
+      const curatedWords = await storage.getAllCuratedWords();
+      
+      // Get definitions for all words
+      const wordsWithDefs = await Promise.all(
+        curatedWords.map(async (cw) => {
+          const def = await storage.getDefinition(cw.id);
+          if (!def) return null;
+          
+          return {
+            id: cw.id,
+            word: cw.word,
+            difficulty: cw.difficulty,
+            pronunciation: def.pronunciation,
+            partOfSpeech: def.partOfSpeech,
+            definition: def.definition,
+            etymology: def.etymology,
+            examples: def.examples,
+          };
+        })
+      );
+
+      // Filter out null values
+      const validWords = wordsWithDefs.filter((w): w is Word => w !== null);
+      res.json(validWords);
     } catch (error) {
-      console.error("Error getting words:", error);
+      console.error("Error getting all words:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
 
+  // Get specific word by ID
   app.get("/api/words/:id", async (req, res) => {
     try {
-      const word = await storage.getWord(req.params.id);
+      const word = await getWordWithFreshDefinition(req.params.id);
       if (!word) {
         return res.status(404).json({ error: "Word not found" });
       }
@@ -147,65 +186,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/progress/stats", async (req, res) => {
-    try {
-      const userId = "demo-user";
-      
-      const wordsLearned = await storage.getLearnedWordsCount(userId);
-      const streak = await storage.getStreak(userId);
-      const level = Math.floor(wordsLearned / 10) + 1;
-
-      res.json({
-        wordsLearned,
-        streak,
-        level,
-      });
-    } catch (error) {
-      console.error("Error getting stats:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.post("/api/progress", async (req, res) => {
-    try {
-      const validated = insertUserProgressSchema.parse(req.body);
-      
-      const userId = validated.userId || "demo-user";
-      const wordId = validated.wordId!;
-      
-      const existing = await storage.getWordProgress(userId, wordId);
-      
-      if (existing) {
-        const updated = await storage.updateUserProgress(existing.id, validated.learned || 0);
-        return res.json(updated);
-      }
-      
-      const progress = await storage.createUserProgress({
-        ...validated,
-        userId,
-      });
-      
-      res.json(progress);
-    } catch (error) {
-      console.error("Error creating progress:", error);
-      res.status(400).json({ error: "Invalid request" });
-    }
-  });
-
-  app.get("/api/progress/:wordId", async (req, res) => {
-    try {
-      const userId = "demo-user";
-      const wordId = req.params.wordId;
-      
-      const progress = await storage.getWordProgress(userId, wordId);
-      
-      res.json(progress || null);
-    } catch (error) {
-      console.error("Error getting progress:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  const httpServer = createServer(app);
-  return httpServer;
+  const server = createServer(app);
+  return server;
 }
