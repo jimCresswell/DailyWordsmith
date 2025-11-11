@@ -1,141 +1,111 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { WordCard } from "@/components/WordCard";
 import { EtymologyTimeline } from "@/components/EtymologyTimeline";
 import { ExampleSentences } from "@/components/ExampleSentences";
 import { ProgressStats } from "@/components/ProgressStats";
 import { PastWordsGrid } from "@/components/PastWordsGrid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Word } from "@shared/schema";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+interface ProgressStats {
+  wordsLearned: number;
+  streak: number;
+  level: number;
+}
 
 export default function HomePage() {
-  const [isLearned, setIsLearned] = useState(false);
+  const { toast } = useToast();
+  const [selectedWord, setSelectedWord] = useState<Word | null>(null);
 
-  //todo: remove mock functionality
-  const todayWord: Word = {
-    id: "1",
-    word: "Ephemeral",
-    pronunciation: "/ɪˈfem.ər.əl/",
-    partOfSpeech: "adjective",
-    definition: "Lasting for a very short time; transient or fleeting in nature.",
-    etymology: "From Greek ephēmeros 'lasting only a day', from epi 'upon' + hēmera 'day'.",
-    examples: [
-      "The ephemeral beauty of cherry blossoms reminds us to appreciate the present moment.",
-      "In the digital age, social media posts are ephemeral, quickly forgotten in the endless scroll.",
-      "The artist captured the ephemeral quality of light on water in her paintings.",
-    ],
-    difficulty: 7,
-    dateAdded: new Date(),
-  };
+  const { data: dailyWord, isLoading: isDailyWordLoading } = useQuery<Word>({
+    queryKey: ["/api/words/daily"],
+  });
 
-  //todo: remove mock functionality
-  const etymologySteps = [
-    {
-      language: "Greek",
-      period: "Ancient",
-      form: "ephēmeros",
-      meaning: "lasting only a day",
-    },
-    {
-      language: "Latin",
-      period: "Classical",
-      form: "ephemerus",
-      meaning: "short-lived",
-    },
-    {
-      language: "French",
-      period: "16th century",
-      form: "éphémère",
-      meaning: "transitory",
-    },
-    {
-      language: "English",
-      period: "1600s",
-      form: "ephemeral",
-      meaning: "lasting for a very short time",
-    },
-  ];
+  const { data: allWords, isLoading: isAllWordsLoading } = useQuery<Word[]>({
+    queryKey: ["/api/words"],
+  });
 
-  //todo: remove mock functionality
-  const exampleSentences = [
-    {
-      sentence: "The ephemeral beauty of cherry blossoms reminds us to appreciate the present moment.",
-      context: "Literary",
-    },
-    {
-      sentence: "In the digital age, social media posts are ephemeral, quickly forgotten in the endless scroll.",
-      context: "Contemporary",
-    },
-    {
-      sentence: "The artist captured the ephemeral quality of light on water in her paintings.",
-      context: "Art Criticism",
-    },
-  ];
+  const { data: stats, isLoading: isStatsLoading } = useQuery<ProgressStats>({
+    queryKey: ["/api/progress/stats"],
+  });
 
-  //todo: remove mock functionality
-  const pastWords: Word[] = [
-    {
-      id: "2",
-      word: "Serendipity",
-      pronunciation: "/ˌser.ənˈdɪp.ə.ti/",
-      partOfSpeech: "noun",
-      definition: "The occurrence of events by chance in a happy or beneficial way.",
-      etymology: null,
-      examples: null,
-      difficulty: 6,
-      dateAdded: new Date("2024-01-09"),
+  const { data: wordProgress } = useQuery<{ learned: number } | null>({
+    queryKey: ["/api/progress", dailyWord?.id],
+    enabled: !!dailyWord?.id,
+  });
+
+  const markLearnedMutation = useMutation({
+    mutationFn: async (wordId: string) => {
+      return apiRequest("/api/progress", "POST", {
+        wordId,
+        userId: "demo-user",
+        learned: 1,
+      });
     },
-    {
-      id: "3",
-      word: "Ubiquitous",
-      pronunciation: "/juːˈbɪk.wɪ.təs/",
-      partOfSpeech: "adjective",
-      definition: "Present, appearing, or found everywhere.",
-      etymology: null,
-      examples: null,
-      difficulty: 7,
-      dateAdded: new Date("2024-01-08"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/progress"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/progress/stats"] });
+      toast({
+        title: "Word learned!",
+        description: "Great job! Keep building your vocabulary.",
+      });
     },
-    {
-      id: "4",
-      word: "Cacophony",
-      pronunciation: "/kəˈkɒf.ə.ni/",
-      partOfSpeech: "noun",
-      definition: "A harsh, discordant mixture of sounds.",
-      etymology: null,
-      examples: null,
-      difficulty: 8,
-      dateAdded: new Date("2024-01-07"),
-    },
-    {
-      id: "5",
-      word: "Ameliorate",
-      pronunciation: "/əˈmiː.li.ə.reɪt/",
-      partOfSpeech: "verb",
-      definition: "To make something bad or unsatisfactory better.",
-      etymology: null,
-      examples: null,
-      difficulty: 8,
-      dateAdded: new Date("2024-01-06"),
-    },
-    {
-      id: "6",
-      word: "Perspicacious",
-      pronunciation: "/ˌpɜː.spɪˈkeɪ.ʃəs/",
-      partOfSpeech: "adjective",
-      definition: "Having a ready insight into and understanding of things.",
-      etymology: null,
-      examples: null,
-      difficulty: 9,
-      dateAdded: new Date("2024-01-05"),
-    },
-  ];
+  });
+
+  const isLearned = wordProgress?.learned === 1;
+
+  const etymologySteps = dailyWord?.etymology
+    ? parseEtymologySteps(dailyWord.etymology)
+    : [];
+
+  const displayWord = selectedWord || dailyWord;
+
+  if (isDailyWordLoading || isStatsLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="max-w-3xl mx-auto px-6 py-8 md:py-12 space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-32" />
+            ))}
+          </div>
+          <Skeleton className="h-96" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!dailyWord) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h2 className="text-2xl font-bold">Unable to load daily word</h2>
+          <p className="text-muted-foreground">
+            Please try refreshing the page.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-3xl mx-auto px-6 py-8 md:py-12 space-y-8 md:space-y-12">
-        <ProgressStats streak={7} wordsLearned={42} currentLevel={3} />
+        <ProgressStats
+          streak={stats?.streak || 0}
+          wordsLearned={stats?.wordsLearned || 0}
+          currentLevel={stats?.level || 1}
+        />
 
-        <Tabs defaultValue="today" className="w-full">
+        <Tabs
+          defaultValue="today"
+          className="w-full"
+          onValueChange={() => setSelectedWord(null)}
+        >
           <TabsList className="w-full md:w-auto" data-testid="tabs-navigation">
             <TabsTrigger value="today" data-testid="tab-today">
               Today's Word
@@ -146,31 +116,87 @@ export default function HomePage() {
           </TabsList>
 
           <TabsContent value="today" className="space-y-8 mt-6">
-            <WordCard
-              word={todayWord}
-              onMarkLearned={() => setIsLearned(true)}
-              isLearned={isLearned}
-            />
+            {displayWord && (
+              <>
+                <WordCard
+                  word={displayWord}
+                  onMarkLearned={() => markLearnedMutation.mutate(displayWord.id)}
+                  isLearned={displayWord.id === dailyWord.id ? isLearned : false}
+                />
 
-            <EtymologyTimeline
-              etymology={todayWord.etymology || ""}
-              steps={etymologySteps}
-            />
+                {displayWord.etymology && (
+                  <EtymologyTimeline
+                    etymology={displayWord.etymology}
+                    steps={etymologySteps}
+                  />
+                )}
 
-            <ExampleSentences
-              word={todayWord.word}
-              examples={exampleSentences}
-            />
+                {displayWord.examples && displayWord.examples.length > 0 && (
+                  <ExampleSentences
+                    word={displayWord.word}
+                    examples={displayWord.examples}
+                  />
+                )}
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="archive" className="mt-6">
-            <PastWordsGrid
-              words={pastWords}
-              onWordClick={(word) => console.log("View word:", word.word)}
-            />
+            {isAllWordsLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <Skeleton key={i} className="h-32" />
+                ))}
+              </div>
+            ) : (
+              <PastWordsGrid
+                words={allWords?.filter((w) => w.id !== dailyWord?.id) || []}
+                onWordClick={(word) => {
+                  setSelectedWord(word);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </div>
     </div>
   );
+}
+
+function parseEtymologySteps(etymology: string): Array<{
+  language: string;
+  period: string;
+  form: string;
+  meaning: string;
+}> {
+  const steps: Array<{
+    language: string;
+    period: string;
+    form: string;
+    meaning: string;
+  }> = [];
+
+  const patterns = [
+    /from (\w+) ([^,]+),?/gi,
+    /(\w+) ([^,]+)/gi,
+  ];
+
+  const matches = etymology.match(/from \w+ [^,]+/gi);
+  
+  if (matches && matches.length > 0) {
+    matches.forEach((match) => {
+      const parts = match.match(/from (\w+) (.+)/i);
+      if (parts) {
+        steps.push({
+          language: parts[1],
+          period: "Historical",
+          form: parts[2].replace(/['"]/g, ""),
+          meaning: parts[2].replace(/['"]/g, ""),
+        });
+      }
+    });
+  }
+
+  return steps;
 }

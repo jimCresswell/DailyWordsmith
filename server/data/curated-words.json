@@ -1,0 +1,92 @@
+[
+  {
+    "word": "ephemeral",
+    "pronunciation": "/ɪˈfem.ər.əl/",
+    "partOfSpeech": "adjective",
+    "definition": "Lasting for a very short time; transient or fleeting in nature.",
+    "etymology": "From Greek ephēmeros 'lasting only a day', from epi 'upon' + hēmera 'day'.",
+    "examples": ["The ephemeral beauty of cherry blossoms", "Social media posts are ephemeral"],
+    "difficulty": 7
+  },
+  {
+    "word": "ubiquitous",
+    "pronunciation": "/juːˈbɪk.wɪ.təs/",
+    "partOfSpeech": "adjective",
+    "definition": "Present, appearing, or found everywhere; omnipresent.",
+    "etymology": "From Latin ubique 'everywhere', from ubi 'where'.",
+    "examples": ["Smartphones are ubiquitous in modern society", "Coffee shops have become ubiquitous"],
+    "difficulty": 7
+  },
+  {
+    "word": "serendipity",
+    "pronunciation": "/ˌser.ənˈdɪp.ə.ti/",
+    "partOfSpeech": "noun",
+    "definition": "The occurrence of events by chance in a happy or beneficial way.",
+    "etymology": "Coined by Horace Walpole in 1754 from the Persian fairy tale 'The Three Princes of Serendip'.",
+    "examples": ["Finding that book was pure serendipity", "Their meeting was a moment of serendipity"],
+    "difficulty": 6
+  },
+  {
+    "word": "cacophony",
+    "pronunciation": "/kəˈkɒf.ə.ni/",
+    "partOfSpeech": "noun",
+    "definition": "A harsh, discordant mixture of sounds.",
+    "etymology": "From Greek kakophōnia, from kakos 'bad' + phōnē 'sound'.",
+    "examples": ["The cacophony of car horns in the city", "A cacophony of voices filled the room"],
+    "difficulty": 8
+  },
+  {
+    "word": "ameliorate",
+    "pronunciation": "/əˈmiː.li.ə.reɪt/",
+    "partOfSpeech": "verb",
+    "definition": "To make something bad or unsatisfactory better.",
+    "etymology": "From French améliorer, from Latin melior 'better'.",
+    "examples": ["Policies to ameliorate poverty", "Time will ameliorate the pain"],
+    "difficulty": 8
+  },
+  {
+    "word": "perspicacious",
+    "pronunciation": "/ˌpɜː.spɪˈkeɪ.ʃəs/",
+    "partOfSpeech": "adjective",
+    "definition": "Having a ready insight into and understanding of things.",
+    "etymology": "From Latin perspicax 'seeing clearly', from perspicere 'look through'.",
+    "examples": ["A perspicacious analysis of the situation", "Her perspicacious observations"],
+    "difficulty": 9
+  },
+  {
+    "word": "audacious",
+    "pronunciation": "/ɔːˈdeɪ.ʃəs/",
+    "partOfSpeech": "adjective",
+    "definition": "Showing a willingness to take surprisingly bold risks.",
+    "etymology": "From Latin audax 'bold', from audere 'to dare'.",
+    "examples": ["An audacious plan", "Audacious in the pursuit of excellence"],
+    "difficulty": 7
+  },
+  {
+    "word": "equivocal",
+    "pronunciation": "/ɪˈkwɪv.ə.kəl/",
+    "partOfSpeech": "adjective",
+    "definition": "Open to more than one interpretation; ambiguous.",
+    "etymology": "From Late Latin aequivocus, from aequi- 'equally' + vox 'voice'.",
+    "examples": ["An equivocal statement", "The results were equivocal"],
+    "difficulty": 8
+  },
+  {
+    "word": "esoteric",
+    "pronunciation": "/ˌes.əˈter.ɪk/",
+    "partOfSpeech": "adjective",
+    "definition": "Intended for or likely to be understood by only a small number of people with specialized knowledge.",
+    "etymology": "From Greek esōterikos 'belonging to an inner circle', from esō 'within'.",
+    "examples": ["Esoteric philosophical theories", "An esoteric subject"],
+    "difficulty": 8
+  },
+  {
+    "word": "lucid",
+    "pronunciation": "/ˈluː.sɪd/",
+    "partOfSpeech": "adjective",
+    "definition": "Expressed clearly; easy to understand.",
+    "etymology": "From Latin lucidus, from lucere 'to shine'.",
+    "examples": ["A lucid explanation", "Lucid prose"],
+    "difficulty": 6
+  }
+]
