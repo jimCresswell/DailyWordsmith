@@ -24,15 +24,35 @@ interface DictionaryApiResponse {
   origin?: string;
 }
 
-async function fetchWordFromDictionary(word: string): Promise<DictionaryApiResponse | null> {
+interface FetchWordResult {
+  success: boolean;
+  data?: DictionaryApiResponse;
+  notFound?: boolean;
+}
+
+async function fetchWordFromDictionary(word: string): Promise<FetchWordResult> {
   try {
     const response = await fetch(`${DICTIONARY_API_URL}/${word.toLowerCase()}`);
-    if (!response.ok) return null;
+    
+    if (response.status === 404) {
+      return { success: false, notFound: true };
+    }
+    
+    if (!response.ok) {
+      return { success: false };
+    }
+    
     const data = await response.json();
-    return Array.isArray(data) ? data[0] : null;
+    const firstEntry = Array.isArray(data) ? data[0] : null;
+    
+    if (!firstEntry) {
+      return { success: false };
+    }
+    
+    return { success: true, data: firstEntry };
   } catch (error) {
     console.error(`Error fetching word ${word}:`, error);
-    return null;
+    return { success: false };
   }
 }
 
@@ -60,9 +80,23 @@ function transformDictionaryData(data: DictionaryApiResponse) {
   };
 }
 
-async function getWordWithFreshDefinition(wordId: string): Promise<Word | null> {
+interface GetWordResult {
+  success: boolean;
+  word?: Word;
+  notFound?: boolean;
+}
+
+async function getWordWithFreshDefinition(wordId: string): Promise<GetWordResult> {
   const curatedWord = await storage.getCuratedWord(wordId);
-  if (!curatedWord) return null;
+  if (!curatedWord) {
+    return { success: false };
+  }
+
+  // Check if word is already marked as missing
+  const missingDef = await storage.getMissingDefinition(wordId);
+  if (missingDef) {
+    return { success: false, notFound: true };
+  }
 
   // Check existing definition
   const existingDef = await storage.getDefinition(wordId);
@@ -70,66 +104,109 @@ async function getWordWithFreshDefinition(wordId: string): Promise<Word | null> 
   // If definition exists and is fresh, return it
   if (existingDef && !storage.isDefinitionStale(existingDef)) {
     return {
-      id: curatedWord.id,
-      word: curatedWord.word,
-      difficulty: curatedWord.difficulty,
-      pronunciation: existingDef.pronunciation,
-      partOfSpeech: existingDef.partOfSpeech,
-      definition: existingDef.definition,
-      etymology: existingDef.etymology,
-      examples: existingDef.examples,
+      success: true,
+      word: {
+        id: curatedWord.id,
+        word: curatedWord.word,
+        difficulty: curatedWord.difficulty,
+        pronunciation: existingDef.pronunciation,
+        partOfSpeech: existingDef.partOfSpeech,
+        definition: existingDef.definition,
+        etymology: existingDef.etymology,
+        examples: existingDef.examples,
+      }
     };
   }
 
   // Definition is stale or doesn't exist - fetch from API
-  const dictionaryData = await fetchWordFromDictionary(curatedWord.word);
+  const fetchResult = await fetchWordFromDictionary(curatedWord.word);
   
-  if (dictionaryData) {
+  if (fetchResult.success && fetchResult.data) {
     // Got fresh data from API - upsert it
-    const freshDefData = transformDictionaryData(dictionaryData);
+    const freshDefData = transformDictionaryData(fetchResult.data);
     const updatedDef = await storage.upsertDefinition(wordId, freshDefData);
     
     return {
-      id: curatedWord.id,
-      word: curatedWord.word,
-      difficulty: curatedWord.difficulty,
-      pronunciation: updatedDef.pronunciation,
-      partOfSpeech: updatedDef.partOfSpeech,
-      definition: updatedDef.definition,
-      etymology: updatedDef.etymology,
-      examples: updatedDef.examples,
+      success: true,
+      word: {
+        id: curatedWord.id,
+        word: curatedWord.word,
+        difficulty: curatedWord.difficulty,
+        pronunciation: updatedDef.pronunciation,
+        partOfSpeech: updatedDef.partOfSpeech,
+        definition: updatedDef.definition,
+        etymology: updatedDef.etymology,
+        examples: updatedDef.examples,
+      }
     };
+  } else if (fetchResult.notFound) {
+    // API returned 404 - mark word as missing
+    await storage.markWordAsMissing(wordId, "Dictionary API returned 404");
+    return { success: false, notFound: true };
   } else if (existingDef) {
     // API failed but we have stale data - return it anyway
     console.warn(`Using stale definition for ${curatedWord.word} (API fetch failed)`);
     return {
-      id: curatedWord.id,
-      word: curatedWord.word,
-      difficulty: curatedWord.difficulty,
-      pronunciation: existingDef.pronunciation,
-      partOfSpeech: existingDef.partOfSpeech,
-      definition: existingDef.definition,
-      etymology: existingDef.etymology,
-      examples: existingDef.examples,
+      success: true,
+      word: {
+        id: curatedWord.id,
+        word: curatedWord.word,
+        difficulty: curatedWord.difficulty,
+        pronunciation: existingDef.pronunciation,
+        partOfSpeech: existingDef.partOfSpeech,
+        definition: existingDef.definition,
+        etymology: existingDef.etymology,
+        examples: existingDef.examples,
+      }
     };
   }
 
   // No definition available at all
+  return { success: false };
+}
+
+// Iterative retry logic with capped attempts
+async function getRandomWordWithRetry(maxAttempts: number = 10): Promise<Word | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // Get random eligible word (excludes missing definitions)
+    const randomCuratedWord = await storage.getRandomEligibleWord();
+    
+    if (!randomCuratedWord) {
+      // No eligible words left
+      return null;
+    }
+
+    const result = await getWordWithFreshDefinition(randomCuratedWord.id);
+    
+    if (result.success && result.word) {
+      return result.word;
+    }
+    
+    if (result.notFound) {
+      // Word marked as missing, continue to next attempt
+      console.log(`Word ${randomCuratedWord.word} marked as missing (attempt ${attempt + 1}/${maxAttempts})`);
+      continue;
+    }
+    
+    // Other errors - continue trying
+    console.warn(`Failed to get definition for ${randomCuratedWord.word} (attempt ${attempt + 1}/${maxAttempts})`);
+  }
+  
+  // Exhausted all attempts
   return null;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Get a random word
+  // Get a random word with retry logic
   app.get("/api/words/random", async (_req, res) => {
     try {
-      const randomCuratedWord = await storage.getRandomCuratedWord();
-      if (!randomCuratedWord) {
-        return res.status(404).json({ error: "No words available" });
-      }
-
-      const word = await getWordWithFreshDefinition(randomCuratedWord.id);
+      const word = await getRandomWordWithRetry();
+      
       if (!word) {
-        return res.status(404).json({ error: "Could not fetch word definition" });
+        return res.status(503).json({ 
+          error: "Service temporarily unavailable",
+          message: "Unable to find a word with a valid definition. Please try again later."
+        });
       }
 
       res.json(word);
@@ -164,7 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       // Filter out null values
-      const validWords = wordsWithDefs.filter((w): w is Word => w !== null);
+      const validWords = wordsWithDefs.filter((w) => w !== null) as Word[];
       res.json(validWords);
     } catch (error) {
       console.error("Error getting all words:", error);
@@ -175,11 +252,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get specific word by ID
   app.get("/api/words/:id", async (req, res) => {
     try {
-      const word = await getWordWithFreshDefinition(req.params.id);
-      if (!word) {
+      const result = await getWordWithFreshDefinition(req.params.id);
+      
+      if (!result.success || !result.word) {
         return res.status(404).json({ error: "Word not found" });
       }
-      res.json(word);
+      
+      res.json(result.word);
     } catch (error) {
       console.error("Error getting word:", error);
       res.status(500).json({ error: "Internal server error" });

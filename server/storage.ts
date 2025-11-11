@@ -1,14 +1,17 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, notInArray } from "drizzle-orm";
 import {
   type CuratedWord,
   type InsertCuratedWord,
   type WordDefinition,
   type InsertWordDefinition,
+  type MissingDefinition,
+  type InsertMissingDefinition,
   type Word,
   curatedWords,
   wordDefinitions,
+  missingDefinitions,
 } from "@shared/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -26,6 +29,7 @@ export interface IStorage {
   getCuratedWordByText(word: string): Promise<CuratedWord | undefined>;
   getAllCuratedWords(): Promise<CuratedWord[]>;
   getRandomCuratedWord(): Promise<CuratedWord | undefined>;
+  getRandomEligibleWord(): Promise<CuratedWord | undefined>;
   
   // Word definitions operations
   getDefinition(wordId: string): Promise<WordDefinition | undefined>;
@@ -33,6 +37,11 @@ export interface IStorage {
   updateDefinition(id: string, definition: Partial<InsertWordDefinition>): Promise<WordDefinition | undefined>;
   upsertDefinition(wordId: string, definition: Omit<InsertWordDefinition, 'wordId'>): Promise<WordDefinition>;
   isDefinitionStale(definition: WordDefinition): boolean;
+  
+  // Missing definitions operations
+  getMissingDefinition(wordId: string): Promise<MissingDefinition | undefined>;
+  markWordAsMissing(wordId: string, reason: string): Promise<MissingDefinition>;
+  getAllMissingDefinitionIds(): Promise<string[]>;
   
   // Combined operations
   getWordWithDefinition(wordId: string): Promise<Word | undefined>;
@@ -67,6 +76,25 @@ export class PostgresStorage implements IStorage {
     const [word] = await db
       .select()
       .from(curatedWords)
+      .orderBy(sql`RANDOM()`)
+      .limit(1);
+    return word;
+  }
+
+  async getRandomEligibleWord(): Promise<CuratedWord | undefined> {
+    // Get all missing word IDs
+    const missingIds = await this.getAllMissingDefinitionIds();
+    
+    if (missingIds.length === 0) {
+      // No missing words, select any random word
+      return this.getRandomCuratedWord();
+    }
+    
+    // Select random word that's NOT in missing definitions
+    const [word] = await db
+      .select()
+      .from(curatedWords)
+      .where(notInArray(curatedWords.id, missingIds))
       .orderBy(sql`RANDOM()`)
       .limit(1);
     return word;
@@ -127,6 +155,47 @@ export class PostgresStorage implements IStorage {
     const now = new Date().getTime();
     const fetchedAt = new Date(definition.fetchedAt).getTime();
     return now - fetchedAt > NINETY_DAYS_MS;
+  }
+
+  // Missing definitions operations
+  async getMissingDefinition(wordId: string): Promise<MissingDefinition | undefined> {
+    const [missing] = await db
+      .select()
+      .from(missingDefinitions)
+      .where(eq(missingDefinitions.wordId, wordId))
+      .limit(1);
+    return missing;
+  }
+
+  async markWordAsMissing(wordId: string, reason: string): Promise<MissingDefinition> {
+    // Check if already marked as missing
+    const existing = await this.getMissingDefinition(wordId);
+    if (existing) {
+      return existing;
+    }
+
+    // Insert new missing definition record
+    const [missing] = await db
+      .insert(missingDefinitions)
+      .values({ wordId, reason })
+      .onConflictDoNothing() // Handle race conditions
+      .returning();
+    
+    // If onConflictDoNothing triggered, fetch the existing record
+    if (!missing) {
+      const existing = await this.getMissingDefinition(wordId);
+      if (existing) return existing;
+      throw new Error('Failed to mark word as missing');
+    }
+    
+    return missing;
+  }
+
+  async getAllMissingDefinitionIds(): Promise<string[]> {
+    const results = await db
+      .select({ wordId: missingDefinitions.wordId })
+      .from(missingDefinitions);
+    return results.map(r => r.wordId);
   }
 
   // Combined operations

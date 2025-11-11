@@ -9,6 +9,10 @@ Lexicon is a vocabulary learning application that teaches advanced GRE/SAT vocab
 - Removed user authentication - stats now persist in browser localStorage
 - Implemented PostgreSQL caching with 90-day TTL for Dictionary API responses
 - Redesigned database: universal word data in DB, user-specific data in localStorage
+- Expanded word list from 10 to 1985 curated GRE/SAT vocabulary words
+- Implemented missing_definitions table to track words where Dictionary API returns 404
+- Added backend-controlled retry logic with capped attempts (max 10) for random word selection
+- Ensures mutual exclusivity: words in missing_definitions are excluded from random selection
 
 ## User Preferences
 
@@ -53,33 +57,35 @@ Preferred communication style: Simple, everyday language.
 - RESTful API design pattern
 
 **API Structure:**
-- `/api/words/random` - Fetches a random word with fresh or cached definition
+- `/api/words/random` - Fetches a random eligible word with fresh or cached definition (excludes missing words, retries up to 10 times)
 - `/api/words` - Retrieves all words with definitions
 - `/api/words/:id` - Gets a specific word by ID
 
 **Data Layer:**
 - Drizzle ORM configured for PostgreSQL
-- Schema defines two main tables: curated_words, word_definitions
+- Schema defines three main tables: curated_words, word_definitions, missing_definitions
 - PostgreSQL storage implementation with smart caching (90-day TTL)
 - Database migrations managed through Drizzle Kit
 
 **Word Data Source:**
-- Curated word list stored in JSON format (`curated-words.json`) and seeded into `curated_words` table
+- Curated word list (1985 GRE/SAT words) stored in JSON format and seeded into `curated_words` table
 - Integration with Dictionary API (`api.dictionaryapi.dev`) for fetching word definitions
 - Smart caching: definitions cached in PostgreSQL for 90 days, auto-refresh when stale
 - Fallback mechanism: serves stale cached data if API temporarily unavailable
+- Missing word tracking: words returning 404 from Dictionary API are marked in missing_definitions table
+- Backend retry logic: iteratively selects random eligible words (excluding missing) with max 10 attempts
 
 ### Database Schema
 
 **Tables:**
 
 1. **curated_words**
-   - id (primary key, serial)
+   - id (primary key, varchar UUID)
    - word (text, unique)
    - difficulty (integer 1-10)
 
 2. **word_definitions**
-   - id (primary key, serial)
+   - id (primary key, varchar UUID)
    - word_id (foreign key to curated_words, unique constraint)
    - pronunciation (phonetic notation)
    - part_of_speech (grammatical category)
@@ -87,6 +93,12 @@ Preferred communication style: Simple, everyday language.
    - etymology (word origin, nullable)
    - examples (array of usage examples)
    - fetched_at (timestamp for TTL tracking)
+
+3. **missing_definitions**
+   - id (primary key, varchar UUID)
+   - word_id (foreign key to curated_words, unique constraint)
+   - reason (text describing why the word is marked as missing, e.g., "Dictionary API returned 404")
+   - marked_at (timestamp when word was marked as missing)
 
 **LocalStorage Schema:**
 

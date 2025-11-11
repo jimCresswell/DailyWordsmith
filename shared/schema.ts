@@ -25,6 +25,17 @@ export const wordDefinitions = pgTable("word_definitions", {
   fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
 });
 
+// Track words where Dictionary API returned no results (404)
+export const missingDefinitions = pgTable("missing_definitions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  wordId: varchar("word_id")
+    .notNull()
+    .unique() // One entry per missing word
+    .references(() => curatedWords.id, { onDelete: "cascade" }),
+  attemptedAt: timestamp("attempted_at").defaultNow().notNull(),
+  reason: text("reason"), // e.g., "404 - Not found in Dictionary API"
+});
+
 // Insert schemas
 export const insertCuratedWordSchema = createInsertSchema(curatedWords).omit({
   id: true,
@@ -35,12 +46,20 @@ export const insertWordDefinitionSchema = createInsertSchema(wordDefinitions).om
   fetchedAt: true,
 });
 
+export const insertMissingDefinitionSchema = createInsertSchema(missingDefinitions).omit({
+  id: true,
+  attemptedAt: true,
+});
+
 // Types
 export type CuratedWord = typeof curatedWords.$inferSelect;
 export type InsertCuratedWord = z.infer<typeof insertCuratedWordSchema>;
 
 export type WordDefinition = typeof wordDefinitions.$inferSelect;
 export type InsertWordDefinition = z.infer<typeof insertWordDefinitionSchema>;
+
+export type MissingDefinition = typeof missingDefinitions.$inferSelect;
+export type InsertMissingDefinition = z.infer<typeof insertMissingDefinitionSchema>;
 
 // Combined type for frontend consumption
 export type Word = {
