@@ -101,29 +101,46 @@ async function getWordWithFreshDefinition(wordId: string): Promise<GetWordResult
   // Check existing definition
   const existingDef = await storage.getDefinition(wordId);
   
-  // If definition exists and is fresh, return it
-  if (existingDef && !storage.isDefinitionStale(existingDef)) {
-    return {
-      success: true,
-      word: {
-        id: curatedWord.id,
-        word: curatedWord.word,
-        difficulty: curatedWord.difficulty,
-        pronunciation: existingDef.pronunciation,
-        partOfSpeech: existingDef.partOfSpeech,
-        definition: existingDef.definition,
-        etymology: existingDef.etymology,
-        examples: existingDef.examples,
-      }
-    };
+  // If definition exists, check if it has etymology
+  if (existingDef) {
+    // If no etymology, mark as missing and exclude from future selection
+    if (!existingDef.etymology || existingDef.etymology.trim() === '') {
+      await storage.markWordAsMissing(wordId, "No etymology in cached definition");
+      return { success: false, notFound: true };
+    }
+    
+    // Etymology exists and definition is fresh, return it
+    if (!storage.isDefinitionStale(existingDef)) {
+      return {
+        success: true,
+        word: {
+          id: curatedWord.id,
+          word: curatedWord.word,
+          difficulty: curatedWord.difficulty,
+          pronunciation: existingDef.pronunciation,
+          partOfSpeech: existingDef.partOfSpeech,
+          definition: existingDef.definition,
+          etymology: existingDef.etymology,
+          examples: existingDef.examples,
+        }
+      };
+    }
   }
 
   // Definition is stale or doesn't exist - fetch from API
   const fetchResult = await fetchWordFromDictionary(curatedWord.word);
   
   if (fetchResult.success && fetchResult.data) {
-    // Got fresh data from API - upsert it
+    // Got fresh data from API - transform it
     const freshDefData = transformDictionaryData(fetchResult.data);
+    
+    // Check if etymology is present - if not, mark as missing
+    if (!freshDefData.etymology || freshDefData.etymology.trim() === '') {
+      await storage.markWordAsMissing(wordId, "No etymology available from Dictionary API");
+      return { success: false, notFound: true };
+    }
+    
+    // Etymology is present - upsert definition
     const updatedDef = await storage.upsertDefinition(wordId, freshDefData);
     
     return {
