@@ -40,18 +40,29 @@ export default function HomePage() {
 
   const markLearnedMutation = useMutation({
     mutationFn: async (wordId: string) => {
-      return apiRequest("/api/progress", "POST", {
+      console.log("Marking word as learned:", wordId);
+      const response = await apiRequest("POST", "/api/progress", {
         wordId,
         userId: "demo-user",
         learned: 1,
       });
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Mark learned success:", data);
       queryClient.invalidateQueries({ queryKey: ["/api/progress"] });
       queryClient.invalidateQueries({ queryKey: ["/api/progress/stats"] });
       toast({
         title: "Word learned!",
         description: "Great job! Keep building your vocabulary.",
+      });
+    },
+    onError: (error) => {
+      console.error("Error marking word as learned:", error);
+      toast({
+        title: "Error",
+        description: "Failed to mark word as learned. Please try again.",
+        variant: "destructive",
       });
     },
   });
