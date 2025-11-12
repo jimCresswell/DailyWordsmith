@@ -10,7 +10,7 @@ export const curatedWords = pgTable("curated_words", {
   difficulty: integer("difficulty").notNull(), // 1-10 scale
 });
 
-// Cached word definitions from Dictionary API with 90-day TTL
+// Cached word definitions from Wiktionary API with source attribution
 export const wordDefinitions = pgTable("word_definitions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   wordId: varchar("word_id")
@@ -23,17 +23,21 @@ export const wordDefinitions = pgTable("word_definitions", {
   etymology: text("etymology"),
   examples: text("examples").array(),
   fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
+  // Attribution fields for Wiktionary CC BY-SA 3.0 compliance
+  sourceUrl: text("source_url"),
+  retrievedAt: timestamp("retrieved_at"),
+  license: text("license"),
 });
 
-// Track words where Dictionary API returned no results (404)
+// Track words where API returned no results or errors
 export const missingDefinitions = pgTable("missing_definitions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   wordId: varchar("word_id")
     .notNull()
     .unique() // One entry per missing word
     .references(() => curatedWords.id, { onDelete: "cascade" }),
-  attemptedAt: timestamp("attempted_at").defaultNow().notNull(),
-  reason: text("reason"), // e.g., "404 - Not found in Dictionary API"
+  markedAt: timestamp("marked_at").defaultNow().notNull(),
+  reason: text("reason"), // e.g., "404 - Not found", "No etymology available"
 });
 
 // Insert schemas
@@ -48,7 +52,7 @@ export const insertWordDefinitionSchema = createInsertSchema(wordDefinitions).om
 
 export const insertMissingDefinitionSchema = createInsertSchema(missingDefinitions).omit({
   id: true,
-  attemptedAt: true,
+  markedAt: true,
 });
 
 // Types
