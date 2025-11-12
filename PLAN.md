@@ -1,7 +1,7 @@
 # Lexicon - Living Plan Document
 
 **Last Updated**: November 12, 2025  
-**Status**: Etymology-focused redesign complete, awaiting Wiktionary migration
+**Status**: Etymology-focused redesign complete, word history feature pending
 
 ---
 
@@ -15,7 +15,7 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 2. **Advanced Vocabulary**: 2,300+ curated GRE/SAT words with interesting etymological backgrounds
 3. **Random Learning**: On-demand random word loading with refresh capability
 4. **Personal Bookmarks**: User-controlled word collection stored locally (no authentication required)
-5. history of words seen so far - so the user can scroll back to find things
+5. **Word History**: Automatic tracking of all viewed words - users can scroll back to find previously seen words
 6. **Accessible Design**: Full keyboard navigation and screen reader support
 7. **Theme Flexibility**: Light/dark mode with persistence
 
@@ -38,17 +38,35 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - **Zero friction**: No login, no setup, immediate learning
 - **Distraction-free**: Clean interface focused on the word, not gamification
 - **Personal control**: Users curate their own learning through bookmarks, not algorithmic recommendations
+- **Easy review**: Browse complete history of viewed words to reinforce learning
 
 ### Technical Goals
 - **Data resilience**: All curated words preserved in version control (JSON file)
 - **API independence**: Cache strategy prevents third-party API failures from breaking the app
-- **Performance**: Sub-second word loading through PostgreSQL caching (90-day TTL)
+- **Performance**: Sub-500ms word loading at p95 through PostgreSQL caching (90-day TTL)
 
 ---
 
 ## 🎯 Current Goals
 
-### Primary Goal: Wiktionary Migration
+### Primary Goal: Word History Feature
+**Objective**: Implement automatic word view tracking and history browsing
+
+**Rationale**:
+- Users need to revisit words they've seen before
+- Manual bookmarking doesn't capture exploration patterns
+- History enables review without explicit curation
+- Complements bookmarks (history = everything, bookmarks = favorites)
+
+**Success Criteria**:
+- [ ] All viewed words automatically tracked in localStorage
+- [ ] History tab shows chronological list of viewed words
+- [ ] Search functionality within history (filter by word name)
+- [ ] Click history item to view full word details
+- [ ] History persists across sessions
+- [ ] No performance degradation with large history (>1000 words)
+
+### Secondary Goal: Wiktionary Migration
 **Objective**: Migrate from Dictionary API (dictionaryapi.dev) to Wiktionary/Kaikki dataset
 
 **Rationale**:
@@ -63,10 +81,10 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - [ ] Integration maintains current caching architecture (90-day TTL)
 - [ ] Fallback mechanism still works if Wiktionary data unavailable
 
-### Secondary Goals
-1. **Performance optimization**: Measure and optimize word loading time
-2. **Accessibility audit**: Third-party validation of screen reader compatibility
-3. **Mobile optimization**: Ensure responsive design works on small screens
+### Tertiary Goals
+1. **Performance optimization**: Achieve ≤500ms word loading at p95
+2. **Accessibility validation**: Internal evaluation using Replit-available tools
+3. **Browser compatibility**: Test on Firefox Android, Safari iOS, Chrome desktop
 4. **Content quality**: Review etymology fallback messages for educational value
 
 ---
@@ -84,6 +102,11 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - [x] Refresh button to load new random word
 - [x] Light/dark theme toggle with persistence
 - [x] Theme preference survives page reload
+- [ ] **NEW**: Word history tracking (auto-track all viewed words)
+- [ ] **NEW**: History tab showing all previously viewed words (3-tab layout)
+- [ ] **NEW**: Search functionality within word history
+- [ ] **NEW**: Click history item to view word details
+- [ ] **NEW**: History persists across sessions
 
 ### Data Quality
 - [x] 2,320 curated words in database
@@ -95,6 +118,7 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 
 ### User Experience
 - [x] Word loads in <2 seconds (including API call)
+- [ ] **NEW TARGET**: Word loads in ≤500ms at p95
 - [x] Bookmark action provides immediate visual feedback
 - [x] Toast notifications for all user actions (bookmark, refresh, errors)
 - [x] No console errors or warnings in browser
@@ -108,6 +132,8 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - [x] Screen reader announces bookmark actions
 - [x] Focus rings visible on all interactive elements
 - [x] Semantic HTML (proper heading hierarchy)
+- [ ] **NEW**: History cards keyboard accessible
+- [ ] **NEW**: History search keyboard accessible
 
 ### Technical Quality
 - [x] TypeScript strict mode with no type errors
@@ -135,7 +161,20 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
   - Theme switching
   - Page reload persistence
 
-### For Wiktionary Migration (Next Phase)
+### For Word History Feature (Next Phase)
+- [ ] Word history tracking implemented in localStorage
+- [ ] History tab added to UI (Current Word | Bookmarks | History)
+- [ ] PastWordsGrid component integrated and functional
+- [ ] Search functionality works within history
+- [ ] History persists across sessions
+- [ ] Click history item navigates to word details
+- [ ] Performance validated (no degradation with large history)
+- [ ] Keyboard accessibility complete
+- [ ] Architect review approved
+- [ ] End-to-end testing passed
+- [ ] Documentation updated (replit.md + PLAN.md)
+
+### For Wiktionary Migration (Future Phase)
 - [ ] Data source evaluation complete
 - [ ] Migration script written and tested
 - [ ] >95% etymology coverage achieved
@@ -147,9 +186,11 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - [ ] Documentation updated
 
 ### For Production Readiness
+- [ ] Word history feature complete
 - [ ] Wiktionary migration complete
-- [ ] Accessibility audit passed, internal evaluation 
-- [ ] Performance: word loading <500 millisecond (p95)
+- [ ] Accessibility audit passed (internal evaluation using Replit-available tools)
+- [ ] Performance validated: word loading ≤500ms at p95
+- [ ] Browser testing complete (Firefox Android, Safari iOS, Chrome desktop)
 - [ ] Error tracking implemented (console logs for now)
 - [ ] SEO meta tags added
 - [ ] Analytics integrated (privacy-respecting, basic)
@@ -201,39 +242,70 @@ curl http://localhost:5000/api/words
 6. Click bookmark again → Verify removal + toast
 7. Check bookmarks tab → Verify bookmark removed
 8. Click "New Word" button → Verify new word loads + toast
-9. Click theme toggle → Verify colors change
-10. Reload page → Verify theme persists + bookmarks persist
+9. **NEW**: Click "History" tab → Verify previously viewed words appear
+10. **NEW**: Use search in history → Verify filtering works
+11. **NEW**: Click history item → Verify navigates to word
+12. Click theme toggle → Verify colors change
+13. Reload page → Verify theme persists + bookmarks persist + history persists
 
 #### 4. Keyboard Accessibility
 **Testing Flow**:
 1. Use Tab key to navigate through all interactive elements
-2. Verify visible focus rings on: bookmark button, refresh button, theme toggle, tabs, bookmark cards
+2. Verify visible focus rings on: bookmark button, refresh button, theme toggle, tabs, bookmark cards, history cards
 3. Press Enter on bookmark button → Verify bookmark toggles
 4. Press Space on bookmark button → Verify bookmark toggles
 5. Tab to bookmark card → Press Enter → Verify navigation
 6. Tab to bookmark card → Press Space → Verify navigation
+7. **NEW**: Tab to history card → Press Enter → Verify navigation
+8. **NEW**: Tab to history search → Type query → Verify filtering
 
-#### 5. Screen Reader Testing
-**Using NVDA/JAWS/VoiceOver**:
-1. Verify app title announced: "Lexicon"
-2. Navigate to bookmark button → Verify state announced: "Bookmark this word" or "Remove bookmark"
-3. Toggle bookmark → Verify toast announced
-4. Navigate to bookmarks tab → Verify bookmark cards announced with word names
-5. Verify all buttons have descriptive labels
+#### 5. Accessibility Testing
+**Internal Evaluation (Replit-available tools)**:
+1. **Keyboard Navigation**: Tab through all interactive elements, verify focus rings
+2. **Screen Reader Testing** (if available in Replit):
+   - Verify app title announced: "Lexicon"
+   - Navigate to bookmark button → Verify state announced
+   - Toggle bookmark → Verify toast announced
+   - Navigate to tabs → Verify tab names announced
+   - Navigate to cards → Verify word names announced
+3. **Automated Tools** (run in browser DevTools):
+   - Lighthouse accessibility audit (target: 95+ score)
+   - Check for ARIA label completeness
+   - Verify semantic HTML structure
+4. **Visual Testing**:
+   - Verify focus indicators visible in both light/dark themes
+   - Check color contrast ratios (WCAG AA minimum)
+   - Test text scaling up to 200%
 
 #### 6. Performance Testing
-```bash
-# Measure word loading time (backend)
-time curl http://localhost:5000/api/words/random
+**Target: ≤500ms word loading at p95**
 
-# Check database query performance
+```bash
+# Backend API performance (measure p95 latency)
+# Method 1: Manual sampling (50 requests)
+for i in {1..50}; do
+  curl -w "%{time_total}\n" -o /dev/null -s http://localhost:5000/api/words/random
+done | sort -n | awk 'NR==48 {print "p95: " $1 "s"}'
+# Expected: <0.5s
+
+# Method 2: Check database query performance
 # Run SQL: EXPLAIN ANALYZE SELECT * FROM word_definitions WHERE word_id = '...';
 
 # Frontend bundle size
 npm run build
 ls -lh dist/assets/*.js
 # Main bundle should be <500KB
+
+# Full page load (with browser)
+# Use browser DevTools Network tab → reload 10 times → check p95 of total load time
+# Expected: <1s for full page including API call
 ```
+
+**Performance Benchmarks**:
+- API response time (p95): ≤500ms
+- Database query time: ≤50ms
+- Frontend bundle size: <500KB gzipped
+- Time to interactive: <2s
 
 #### 7. Error Handling
 **Test Scenarios**:
@@ -272,17 +344,20 @@ pg_dump $DATABASE_URL > lexicon_backup_$(date +%Y%m%d).sql
 ```
 
 #### 9. Browser Compatibility
-**Test Matrix**:
-- [ ] Chrome (latest)
-- [ ] Firefox (latest)
-- [ ] Mobile
+**Test Priority Order** (test in this sequence):
+1. **PRIMARY**: Firefox on Android (latest)
+2. **SECONDARY**: Safari on iOS (latest) 
+3. **TERTIARY**: Chrome on Desktop (latest)
 
 **For Each Browser**:
-1. Verify word display
-2. Verify bookmark functionality
-3. Verify theme toggle
-4. Verify localStorage persistence
-5. Check console for errors
+1. Verify word display (definition, etymology, pronunciation)
+2. Verify bookmark functionality (add, remove, navigate)
+3. Verify history functionality (view, search, navigate)
+4. Verify theme toggle (light/dark switching)
+5. Verify localStorage persistence (reload test)
+6. Check console for errors
+7. Test responsive layout (portrait/landscape on mobile)
+8. Verify touch interactions (tap, scroll, swipe)
 
 #### 10. Regression Testing
 **After Any Code Change**:
@@ -290,8 +365,10 @@ pg_dump $DATABASE_URL > lexicon_backup_$(date +%Y%m%d).sql
 2. Start workflow → No errors in logs
 3. Load homepage → Word displays correctly
 4. Create bookmark → Appears in bookmarks tab
-5. Theme toggle → Persists after reload
-6. Check browser console → No errors
+5. View word history → Previously viewed words appear
+6. Theme toggle → Persists after reload
+7. Check browser console → No errors
+8. Performance check → API responds in <500ms
 
 ---
 
@@ -319,14 +396,14 @@ pg_dump $DATABASE_URL > lexicon_backup_$(date +%Y%m%d).sql
 **Word Selection Criteria**:
 - 1,985 words: Core GRE/SAT vocabulary from test prep sources
 - 335 words: Advanced vocabulary with particularly interesting etymologies
-- words thst have changed minimally since Proto-Indo-European.
-- words that have changed minimally since Proto-Germanic, Sanskrit, etc
-- words that are surprisingly modern
-- words that are surprisingly onomatopoeic 
-- Greek/Latin compound words
-- Mythological origins (e.g., narcissistic → Narcissus)
-- Surprising linguistic histories
-- Cross-linguistic borrowings
+  - Words that have changed minimally since Proto-Indo-European
+  - Words that have changed minimally since Proto-Germanic, Sanskrit, etc
+  - Words that are surprisingly modern
+  - Words that are surprisingly onomatopoeic 
+  - Greek/Latin compound words
+  - Mythological origins (e.g., narcissistic → Narcissus)
+  - Surprising linguistic histories
+  - Cross-linguistic borrowings
 
 **Validation**:
 ```bash
@@ -358,12 +435,27 @@ test -f server/data/curated-words-merged.json && \
 - Accessibility complete
 
 **Exit Criteria**: 🔄 (Next Phase)
+- Word history feature implemented
 - Wiktionary data source evaluated
 - Migration path documented
 
-### Next State: **WIKTIONARY_EVALUATION**
+### Next State: **WORD_HISTORY_IMPLEMENTATION**
 
 **Entry Criteria**:
+- Etymology redesign complete
+- Plan updated with word history requirements
+
+**Exit Criteria**:
+- Word history tracking implemented
+- History tab functional
+- Search within history works
+- Architect review approved
+- Testing complete
+
+### Future State: **WIKTIONARY_EVALUATION**
+
+**Entry Criteria**:
+- Word history feature complete
 - Download Wiktionary/Kaikki dataset
 - Parse data format
 - Match against our 2,320 words
@@ -391,7 +483,7 @@ test -f server/data/curated-words-merged.json && \
 **Entry Criteria**:
 - All acceptance criteria met
 - Accessibility audit passed
-- User testing complete
+- Browser testing complete
 
 **Exit Criteria**:
 - Published to replit.app
@@ -401,6 +493,13 @@ test -f server/data/curated-words-merged.json && \
 ---
 
 ## 📝 Change Log
+
+### v0.4.0 - Word History Feature (Upcoming)
+- Add automatic word view tracking
+- Implement History tab with 3-tab layout (Current Word | Bookmarks | History)
+- Integrate PastWordsGrid component with search
+- Enable history persistence in localStorage
+- Full keyboard accessibility for history navigation
 
 ### v0.3.0 - Etymology-Focused Redesign (November 12, 2025)
 - Discovered Dictionary API has <5% etymology coverage
@@ -429,35 +528,49 @@ test -f server/data/curated-words-merged.json && \
 ## 🚀 Next Actions
 
 ### Immediate (This Week)
-1. **Evaluate Wiktionary/Kaikki dataset**
-   - Download dataset
-   - Parse data format
-   - Generate coverage report
-   - Document findings in PLAN.md
+1. **Implement Word History Feature**
+   - Add History tab to UI (3-tab layout)
+   - Implement word view tracking in localStorage
+   - Integrate PastWordsGrid component
+   - Add search functionality
+   - Test history persistence
+   - Architect review
 
 2. **Performance baseline**
-   - Measure current word loading time
+   - Measure current word loading time (p95)
    - Document in PLAN.md for future comparison
+   - Validate ≤500ms goal
 
 ### Short-term (Next 2 Weeks)
 1. **Wiktionary migration**
+   - Evaluate Wiktionary/Kaikki dataset
    - Write migration script
    - Test on staging data
    - Execute migration
    - Validate etymology coverage
 
-2. **Accessibility audit**
-   - Run automated tools (axe, WAVE)
+2. **Browser compatibility testing**
+   - Test on Firefox Android (primary)
+   - Test on Safari iOS (secondary)
+   - Test on Chrome desktop (tertiary)
+   - Document issues and fixes
+
+3. **Accessibility audit**
+   - Run Lighthouse accessibility audits
+   - Keyboard navigation testing
    - Document issues and fixes
 
 ### Medium-term (Next Month)
-2. **User testing**
-   - Recruit 5+ test users
-   - Collect feedback
-   - Prioritize improvements
-
 1. **Production deployment**
+   - Final performance validation
+   - SEO meta tags
+   - Basic analytics integration
    - Publish to replit.app
+
+2. **Post-launch** (optional)
+   - Collect user feedback
+   - Monitor performance metrics
+   - Prioritize improvements
 
 ---
 
@@ -473,4 +586,4 @@ test -f server/data/curated-words-merged.json && \
 
 **Document Owner**: Replit Agent  
 **Review Frequency**: After each major feature completion  
-**Next Review**: After Wiktionary migration evaluation
+**Next Review**: After word history implementation
