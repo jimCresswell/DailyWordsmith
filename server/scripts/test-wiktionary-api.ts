@@ -256,7 +256,8 @@ async function testActionAPIForEtymology(word: string): Promise<{
     const wikitext = page.revisions?.[0]?.slots?.main?.['*'] || '';
     
     // Extract English section first
-    const englishMatch = wikitext.match(/==English==([\s\S]*?)(?:\n==[^=]|$)/);
+    // Match ==English== followed by content until next language section (==LanguageName==) or end of file
+    const englishMatch = wikitext.match(/==English==\s*([\s\S]*?)(?=\n==[A-Z][a-z]|$)/);
     const englishSection = englishMatch ? englishMatch[1] : wikitext;
     
     // Extract etymology (try numbered and unnumbered)
