@@ -3,6 +3,7 @@
 export interface BookmarkedWord {
   wordId: string;
   word: string;
+  definition: string; // Store definition for quick display
   bookmarkedAt: string; // ISO date string
 }
 
@@ -36,7 +37,7 @@ export function isWordBookmarked(wordId: string): boolean {
 }
 
 // Toggle bookmark status for a word
-export function toggleBookmark(wordId: string, word: string): boolean {
+export function toggleBookmark(wordId: string, word: string, definition: string): boolean {
   const bookmarks = getBookmarkedWords();
   const existingIndex = bookmarks.findIndex((b) => b.wordId === wordId);
   
@@ -50,6 +51,7 @@ export function toggleBookmark(wordId: string, word: string): boolean {
     bookmarks.push({
       wordId,
       word,
+      definition,
       bookmarkedAt: new Date().toISOString(),
     });
     saveBookmarkedWords(bookmarks);

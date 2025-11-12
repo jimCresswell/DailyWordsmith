@@ -78,14 +78,18 @@ export function WordCard({
           </p>
         </div>
 
-        {word.etymology && (
-          <div>
-            <h2 className="text-sm font-semibold text-muted-foreground mb-2">ETYMOLOGY</h2>
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground mb-2">ETYMOLOGY</h2>
+          {word.etymology ? (
             <p className="text-base leading-relaxed text-muted-foreground" data-testid="text-etymology">
               {word.etymology}
             </p>
-          </div>
-        )}
+          ) : (
+            <p className="text-base leading-relaxed italic text-muted-foreground/60" data-testid="text-etymology-unavailable">
+              Etymology unavailable — Wiktionary import in progress
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="pt-4 flex gap-3">

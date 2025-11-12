@@ -69,8 +69,8 @@ export default function HomePage() {
   };
 
   // Toggle bookmark
-  const handleToggleBookmark = (wordId: string, word: string) => {
-    const nowBookmarked = toggleBookmark(wordId, word);
+  const handleToggleBookmark = (wordId: string, word: string, definition: string) => {
+    const nowBookmarked = toggleBookmark(wordId, word, definition);
     const bookmarks = getBookmarkedWords();
     setBookmarkedWordIds(bookmarks.map((b) => b.wordId));
     
@@ -84,10 +84,8 @@ export default function HomePage() {
 
   const displayWord = selectedWord || currentWord;
 
-  // Get bookmarked words for display
-  const bookmarkedWords = allWords?.filter((w) => 
-    bookmarkedWordIds.includes(w.id)
-  ) || [];
+  // Get bookmarked words for display - use stored bookmark data directly
+  const bookmarkedWords = getBookmarkedWords();
 
   if (isWordLoading) {
     return (
@@ -134,7 +132,7 @@ export default function HomePage() {
               <>
                 <WordCard
                   word={displayWord}
-                  onBookmark={() => handleToggleBookmark(displayWord.id, displayWord.word)}
+                  onBookmark={() => handleToggleBookmark(displayWord.id, displayWord.word, displayWord.definition)}
                   onRefresh={() => refreshWordMutation.mutate()}
                   isBookmarked={bookmarkedWordIds.includes(displayWord.id)}
                   isRefreshing={refreshWordMutation.isPending}
@@ -159,27 +157,38 @@ export default function HomePage() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {bookmarkedWords.map((word) => (
+                {bookmarkedWords.map((bookmark) => (
                   <Card
-                    key={word.id}
+                    key={bookmark.wordId}
                     className="p-4 cursor-pointer hover-elevate active-elevate-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                    onClick={() => handleBookmarkWordClick(word)}
-                    onKeyDown={(e) => {
+                    onClick={async () => {
+                      // Fetch the full word by ID when clicking bookmark
+                      const response = await apiRequest("GET", `/api/words/${bookmark.wordId}`);
+                      const word: Word = await response.json();
+                      setSelectedWord(word);
+                      setActiveTab("today");
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    onKeyDown={async (e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        handleBookmarkWordClick(word);
+                        const response = await apiRequest("GET", `/api/words/${bookmark.wordId}`);
+                        const word: Word = await response.json();
+                        setSelectedWord(word);
+                        setActiveTab("today");
+                        window.scrollTo({ top: 0, behavior: "smooth" });
                       }
                     }}
                     tabIndex={0}
                     role="button"
-                    aria-label={`View word ${word.word}`}
-                    data-testid={`bookmark-card-${word.id}`}
+                    aria-label={`View word ${bookmark.word}`}
+                    data-testid={`bookmark-card-${bookmark.wordId}`}
                   >
-                    <h3 className="text-xl font-bold mb-2" data-testid={`bookmark-word-${word.id}`}>
-                      {word.word}
+                    <h3 className="text-xl font-bold mb-2" data-testid={`bookmark-word-${bookmark.wordId}`}>
+                      {bookmark.word}
                     </h3>
                     <p className="text-sm text-muted-foreground line-clamp-2">
-                      {word.definition}
+                      {bookmark.definition}
                     </p>
                   </Card>
                 ))}
