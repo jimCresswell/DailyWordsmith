@@ -1,8 +1,8 @@
-# Lexicon - Daily Vocabulary Builder
+# Lexicon - Etymology-Focused Vocabulary Builder
 
 ## Overview
 
-Lexicon is a vocabulary learning application that teaches advanced GRE/SAT vocabulary words. The app loads random words on demand with a refresh button, displays comprehensive information (pronunciation, definitions, etymology, examples), and caches word data in PostgreSQL for 90 days. User progress (streak, words learned, level) is stored locally in browser localStorage without backend authentication. The app features a clean, educational-focused interface inspired by Duolingo's learning-centered design and Notion's information hierarchy.
+Lexicon is a vocabulary learning application that teaches advanced GRE/SAT vocabulary words with mandatory etymology display. The app loads random words on demand with a refresh button, displays comprehensive information (pronunciation, definitions, etymology, examples), and caches word data in PostgreSQL for 90 days. User bookmarks are stored in browser localStorage without backend authentication. The app features a clean, etymology-focused interface with light/dark themes.
 
 **Recent Refactor (November 2025):**
 - Migrated from daily word to random word loading with refresh button
@@ -10,11 +10,28 @@ Lexicon is a vocabulary learning application that teaches advanced GRE/SAT vocab
 - Implemented PostgreSQL caching with 90-day TTL for Dictionary API responses
 - Redesigned database: universal word data in DB, user-specific data in localStorage
 - Expanded word list from 10 to 2,320 curated GRE/SAT vocabulary words
-  - Initial 1,985 words from comprehensive GRE/SAT sources
+  - Initial 1,985 words from comprehensive GRE/SAT prep sources
   - Added 335 advanced words with particularly interesting etymologies (Greek/Latin compounds, mythological origins, surprising histories)
 - Implemented missing_definitions table to track words where Dictionary API returns 404
 - Added backend-controlled retry logic with capped attempts (max 10) for random word selection
 - Ensures mutual exclusivity: words in missing_definitions are excluded from random selection
+
+**Etymology-Focused Redesign (November 2025):**
+- Discovered Dictionary API has <5% etymology coverage via data analysis
+- Temporarily relaxed etymology-mandatory requirement to unblock app functionality
+- Etymology section now prominently displayed under definition (always visible)
+- Shows fallback message when etymology missing: "Etymology unavailable — Wiktionary import in progress"
+- Removed all "learned" tracking and progress metrics (streak, level, words learned)
+- Implemented bookmarks feature as replacement:
+  - Bookmark button with fixed-width icon (prevents layout shifts)
+  - Bookmarks tab showing grid of bookmarked words with definitions
+  - Bookmarks stored in localStorage: wordId, word, definition
+  - Click bookmark to view full word details (fetches via GET /api/words/:id)
+  - Full keyboard accessibility (tabindex, Enter/Space handlers, focus rings)
+  - Screen reader support (aria-labels, sr-only text for all interactive elements)
+- Cleaned 913 etymology-related entries from missing_definitions table
+- Light/dark theme toggle with localStorage persistence
+- **Next Priority**: Migrate to Wiktionary/Kaikki dataset for >95% etymology coverage
 
 ## User Preferences
 
@@ -40,16 +57,17 @@ Preferred communication style: Simple, everyday language.
 - Component-based architecture with reusable UI primitives
 
 **Key UI Components:**
-- `WordCard`: Displays the daily word with pronunciation and part of speech
-- `EtymologyTimeline`: Expandable section showing word origin and evolution
+- `WordCard`: Displays the word with pronunciation, part of speech, definition, and prominent etymology section
 - `ExampleSentences`: Shows contextual usage with highlighted vocabulary
-- `ProgressStats`: Displays user metrics (streak, words learned, level)
-- `PastWordsGrid`: Searchable grid of previously learned words
+- `ThemeToggle`: Light/dark mode toggle in header
+- `Tabs`: Two-tab layout for "Current Word" and "Bookmarks"
+- Removed: `ProgressStats`, `EtymologyTimeline`, `PastWordsGrid` (replaced with bookmarks)
 
 **State Management Approach:**
 - Server state managed through React Query with custom query client
-- UI state managed through React hooks and context (theme, mobile detection)
-- No global Redux/Zustand store - relies on component composition and prop drilling where needed
+- UI state managed through React hooks (theme, bookmarks, selected word)
+- Bookmarks stored in localStorage with utility functions
+- No global Redux/Zustand store - relies on component composition
 
 ### Backend Architecture
 
@@ -59,7 +77,7 @@ Preferred communication style: Simple, everyday language.
 - RESTful API design pattern
 
 **API Structure:**
-- `/api/words/random` - Fetches a random eligible word with fresh or cached definition (excludes missing words, retries up to 10 times)
+- `/api/words/random` - Fetches a random eligible word with fresh or cached definition (excludes missing words, allows null etymology, retries up to 10 times)
 - `/api/words` - Retrieves all words with definitions
 - `/api/words/:id` - Gets a specific word by ID
 
@@ -74,10 +92,12 @@ Preferred communication style: Simple, everyday language.
   - 1,985 words from comprehensive GRE/SAT prep sources
   - 335 advanced words selected for particularly interesting etymologies
 - Integration with Dictionary API (`api.dictionaryapi.dev`) for fetching word definitions
+- **Limitation**: Dictionary API has <5% etymology coverage
 - Smart caching: definitions cached in PostgreSQL for 90 days, auto-refresh when stale
 - Fallback mechanism: serves stale cached data if API temporarily unavailable
 - Missing word tracking: words returning 404 from Dictionary API are marked in missing_definitions table
 - Backend retry logic: iteratively selects random eligible words (excluding missing) with max 10 attempts
+- **Temporary State**: Etymology filtering relaxed until Wiktionary migration
 
 ### Database Schema
 
@@ -94,7 +114,7 @@ Preferred communication style: Simple, everyday language.
    - pronunciation (phonetic notation)
    - part_of_speech (grammatical category)
    - definition (meaning)
-   - etymology (word origin, nullable)
+   - etymology (word origin, **nullable** - temporarily allows null)
    - examples (array of usage examples)
    - fetched_at (timestamp for TTL tracking)
 
@@ -106,14 +126,11 @@ Preferred communication style: Simple, everyday language.
 
 **LocalStorage Schema:**
 
-1. **lexicon_user_stats**
-   - wordsLearned (number)
-   - streak (number)
-   - level (number)
-   - lastVisit (ISO date string)
+1. **lexicon_bookmarked_words** (replaces lexicon_word_views)
+   - Array of {wordId, word, definition, bookmarkedAt}
 
-2. **lexicon_word_views**
-   - Array of {wordId, viewedAt, learned}
+2. **theme** (for light/dark mode)
+   - String: "light" or "dark"
 
 **Design Decisions:**
 - Separated universal word data (DB) from user-specific data (localStorage)
@@ -121,6 +138,7 @@ Preferred communication style: Simple, everyday language.
 - 90-day TTL (fetched_at) enables automatic definition refresh without manual cleanup
 - Array type for examples allows flexible storage of multiple usage contexts
 - localStorage eliminates need for backend authentication while preserving UX
+- Etymology nullable to accommodate Dictionary API limitations (temporary)
 
 ### Architectural Patterns
 
@@ -151,7 +169,8 @@ Preferred communication style: Simple, everyday language.
 **Dictionary API:**
 - Service: `api.dictionaryapi.dev`
 - Purpose: Fetch word definitions, pronunciations, and usage examples
-- Fallback: Curated local JSON data if API unavailable
+- **Limitation**: <5% etymology coverage
+- **Planned Migration**: Wiktionary/Kaikki dataset for >95% etymology coverage
 - No authentication required
 
 ### Database
