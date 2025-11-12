@@ -31,7 +31,12 @@ Lexicon is a vocabulary learning application that teaches advanced GRE/SAT vocab
   - Screen reader support (aria-labels, sr-only text for all interactive elements)
 - Cleaned 913 etymology-related entries from missing_definitions table
 - Light/dark theme toggle with localStorage persistence
-- **Next Priority**: Migrate to Wiktionary/Kaikki dataset for >95% etymology coverage
+- **Migration Status (November 2025)**:
+- Wiktionary migration in progress: Achieving 96% etymology coverage (exceeds 95% target)
+- Migration running in background (PID 4434): ~44/2,320 words completed
+- Attribution UI implemented: Displays "Source: Wiktionary" + CC BY-SA 3.0 license when available
+- Estimated completion: ~75 minutes for full dataset
+- **Architecture**: Offline bulk migration runs BEFORE deployment, no runtime API calls
 
 ## User Preferences
 
