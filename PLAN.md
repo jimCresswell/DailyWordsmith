@@ -15,8 +15,9 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 2. **Advanced Vocabulary**: 2,300+ curated GRE/SAT words with interesting etymological backgrounds
 3. **Random Learning**: On-demand random word loading with refresh capability
 4. **Personal Bookmarks**: User-controlled word collection stored locally (no authentication required)
-5. **Accessible Design**: Full keyboard navigation and screen reader support
-6. **Theme Flexibility**: Light/dark mode with persistence
+5. history of words seen so far - so the user can scroll back to find things
+6. **Accessible Design**: Full keyboard navigation and screen reader support
+7. **Theme Flexibility**: Light/dark mode with persistence
 
 ### Non-Requirements (Removed)
 - User authentication or backend user accounts
@@ -147,13 +148,11 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 
 ### For Production Readiness
 - [ ] Wiktionary migration complete
-- [ ] Accessibility audit passed (third-party validation)
-- [ ] Performance: word loading <1 second (p95)
-- [ ] Mobile testing complete (iOS Safari, Android Chrome)
-- [ ] Error tracking implemented (monitoring)
+- [ ] Accessibility audit passed, internal evaluation 
+- [ ] Performance: word loading <500 millisecond (p95)
+- [ ] Error tracking implemented (console logs for now)
 - [ ] SEO meta tags added
-- [ ] Analytics integrated (privacy-respecting)
-- [ ] User testing with 5+ participants
+- [ ] Analytics integrated (privacy-respecting, basic)
 - [ ] Published to replit.app domain
 
 ---
@@ -276,10 +275,7 @@ pg_dump $DATABASE_URL > lexicon_backup_$(date +%Y%m%d).sql
 **Test Matrix**:
 - [ ] Chrome (latest)
 - [ ] Firefox (latest)
-- [ ] Safari (latest)
-- [ ] Edge (latest)
-- [ ] Chrome Mobile (Android)
-- [ ] Safari Mobile (iOS)
+- [ ] Mobile
 
 **For Each Browser**:
 1. Verify word display
@@ -323,10 +319,14 @@ pg_dump $DATABASE_URL > lexicon_backup_$(date +%Y%m%d).sql
 **Word Selection Criteria**:
 - 1,985 words: Core GRE/SAT vocabulary from test prep sources
 - 335 words: Advanced vocabulary with particularly interesting etymologies
-  - Greek/Latin compound words
-  - Mythological origins (e.g., narcissistic → Narcissus)
-  - Surprising linguistic histories
-  - Cross-linguistic borrowings
+- words thst have changed minimally since Proto-Indo-European.
+- words that have changed minimally since Proto-Germanic, Sanskrit, etc
+- words that are surprisingly modern
+- words that are surprisingly onomatopoeic 
+- Greek/Latin compound words
+- Mythological origins (e.g., narcissistic → Narcissus)
+- Surprising linguistic histories
+- Cross-linguistic borrowings
 
 **Validation**:
 ```bash
@@ -448,18 +448,15 @@ test -f server/data/curated-words-merged.json && \
 
 2. **Accessibility audit**
    - Run automated tools (axe, WAVE)
-   - Manual screen reader testing
    - Document issues and fixes
 
 ### Medium-term (Next Month)
-1. **User testing**
+2. **User testing**
    - Recruit 5+ test users
    - Collect feedback
    - Prioritize improvements
 
-2. **Production deployment**
-   - Set up monitoring
-   - Configure analytics
+1. **Production deployment**
    - Publish to replit.app
 
 ---
