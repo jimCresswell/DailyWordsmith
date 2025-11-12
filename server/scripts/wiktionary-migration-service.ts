@@ -68,18 +68,28 @@ export class WiktionaryMigrationService {
   }
 
   /**
-   * Main entry point - runs the full migration
+   * Main entry point - runs the migration
+   * @param limit Optional limit for testing (e.g., migrate only first 10 words)
    */
-  async runMigration() {
+  async runMigration(limit?: number) {
     console.log('========================================');
     console.log('Wiktionary Offline Migration Starting');
-    console.log(`Total words to migrate: ${this.totalWords}`);
+    if (limit) {
+      console.log(`TEST MODE: Limiting to ${limit} words`);
+    }
+    console.log(`Total words in database: ${this.totalWords}`);
     console.log('========================================\n');
 
     const startTime = Date.now();
 
     // Get list of words that need migration
-    const wordsToMigrate = await this.getWordsNeedingMigration();
+    let wordsToMigrate = await this.getWordsNeedingMigration();
+    
+    // Apply limit if specified (for testing)
+    if (limit && wordsToMigrate.length > limit) {
+      wordsToMigrate = wordsToMigrate.slice(0, limit);
+      console.log(`Limiting migration to first ${limit} words for testing\n`);
+    }
     console.log(`Words needing migration: ${wordsToMigrate.length}`);
     console.log(`Already migrated: ${this.totalWords - wordsToMigrate.length}\n`);
 
@@ -364,13 +374,19 @@ export class WiktionaryMigrationService {
       withEtymology: sql<number>`COUNT(CASE WHEN etymology IS NOT NULL THEN 1 END)`,
       withExamples: sql<number>`COUNT(CASE WHEN array_length(examples, 1) > 0 THEN 1 END)`
     })
-    .from(wordDefinitions);
+    .from(wordDefinitions)
+    .where(isNotNull(wordDefinitions.sourceUrl)); // Only count migrated words
     
     const stat = stats[0];
+    if (stat.total === 0) {
+      console.log(`\nNo migrated words found in database`);
+      return;
+    }
+    
     const etymologyCoverage = ((stat.withEtymology / stat.total) * 100).toFixed(1);
     const examplesCoverage = ((stat.withExamples / stat.total) * 100).toFixed(1);
     
-    console.log(`\nCoverage Statistics:`);
+    console.log(`\nCoverage Statistics (Migrated Words Only):`);
     console.log(`- Etymology: ${etymologyCoverage}% (${stat.withEtymology}/${stat.total})`);
     console.log(`- Examples: ${examplesCoverage}% (${stat.withExamples}/${stat.total})`);
   }
