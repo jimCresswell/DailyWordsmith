@@ -1,7 +1,7 @@
 # Lexicon - Living Plan Document
 
 **Last Updated**: November 12, 2025  
-**Status**: App non-functional - BLOCKED on etymology data source migration
+**Status**: Week 2 - Building offline migration script (Week 1 viability testing COMPLETE - 96% coverage achieved)
 
 ---
 
@@ -59,12 +59,15 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - **All other work is blocked**: Cannot build features on top of incomplete core data
 - **Risk of wasted effort**: Features built now will need rework after migration
 
-**Migration Approach**:
+**Migration Approach (Offline Bulk Migration)**:
+- **Architecture**: One-time offline migration script runs BEFORE deployment
+- **Data Flow**: `curated-words.json → Migration Script → Wiktionary API → PostgreSQL`
 - **Primary**: Wiktionary REST API (`/api/rest_v1/page/definition/{word}`)
 - **Fallback**: Wiktionary Action API (wikitext parsing for etymology gaps)
-- **Scale fit**: 2,320 words = ~30-40 min at 1-2 req/sec (manageable with API)
-- **Validation**: Test with 50-100 sample words first to confirm viability
-- **API Etiquette**: Wikimedia-compliant User-Agent + HTTP caching (ETag/Last-Modified)
+- **Scale**: 2,320 words = ~40 min runtime at 1 req/sec (runs once, offline)
+- **User Experience**: App ships with 100% data pre-loaded, no runtime API calls
+- **Performance**: Sub-100ms word loading from pre-populated PostgreSQL cache
+- **API Etiquette**: Wikimedia-compliant User-Agent + rate limiting
 - **Share-Alike**: Backend API serving adapted text must remain CC BY-SA 3.0 compatible
 
 **Success Criteria** (MUST complete before any other work):
@@ -201,35 +204,36 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
   - Page reload persistence
 
 ### For Wiktionary Migration (CURRENT PHASE - BLOCKING ALL OTHER WORK)
-- [ ] **WEEK 1 DELIVERABLES** (API Viability Testing):
-  - [ ] Test Wiktionary REST API (`/api/rest_v1/page/definition/{word}`) with 50-100 sample words
-  - [ ] Measure etymology coverage rate from REST API
-  - [ ] Test Action API fallback for words missing etymology in REST
-  - [ ] Assess etymology quality (sample 50 random entries for educational value)
-  - [ ] Generate coverage report showing % with complete data
-  - [ ] Document API response format and parsing requirements
-  - [ ] Make go/no-go decision for full API migration
-  - [ ] Document findings in PLAN.md
-- [ ] **WEEK 2 DELIVERABLES** (Implementation):
-  - [ ] Implement rate-limited HTTP client (1-2 req/sec, token bucket algorithm)
+- [x] **WEEK 1 DELIVERABLES** (API Viability Testing) ✅ COMPLETE:
+  - [x] Test Wiktionary REST API with 50 sample words
+  - [x] Measure etymology coverage rate from REST API (90% initially)
+  - [x] Test Action API fallback for words missing etymology in REST
+  - [x] Fix parser bug (regex for English section extraction)
+  - [x] Re-test with fixed parser: **96% coverage achieved** (exceeds 95% target)
+  - [x] Generate coverage report showing % with complete data
+  - [x] Document API response format and parsing requirements
+  - [x] Make go/no-go decision: **GO** - proceed with migration
+  - [x] Document findings in WIKTIONARY_WEEK1_REPORT.md
+- [ ] **WEEK 2 DELIVERABLES** (Offline Migration Implementation):
+  - [ ] Build WiktionaryMigrationService class with rate limiting (1-2 req/sec)
   - [ ] Add exponential backoff with jitter for 429/5xx errors
   - [ ] Update database schema: add `source_url`, `retrieved_at`, `license` fields
   - [ ] Build REST API parser (extract definitions, etymology, pronunciation, examples)
   - [ ] Build Action API fallback parser (parse wikitext for etymology sections)
-  - [ ] Write migration script with progress tracking and error handling
-  - [ ] Test migration script on 100 words
-  - [ ] Backup current database before migration
-- [ ] **WEEK 3 DELIVERABLES** (Execution & Validation):
-  - [ ] Execute full migration for all 2,320 words (~30-40 min runtime)
-  - [ ] Validate ≥95% etymology coverage in database
+  - [ ] Write **offline bulk migration script** that runs BEFORE deployment
+  - [ ] Implement progress tracking and resumable migration capability
+  - [ ] Test migration script on 100 words (verify no runtime API calls)
+- [ ] **WEEK 3 DELIVERABLES** (Pre-load Data & User Experience):
+  - [ ] Execute full offline migration for all 2,320 words (~40 min runtime)
+  - [ ] Validate 100% of words have data in PostgreSQL BEFORE app deployment
+  - [ ] Confirm ≥95% etymology coverage in pre-loaded database
+  - [ ] Verify app loads words from database only (NO runtime API calls)
   - [ ] Add attribution UI component (source link + CC BY-SA 3.0 notice)
-  - [ ] Integrate attribution component into word display
-  - [ ] Update/remove fallback messages for missing etymologies
-  - [ ] Performance benchmark (confirm no regression, target <500ms p95)
-  - [ ] License compliance validation (all requirements met)
+  - [ ] Remove all "import in progress" or loading state messages
+  - [ ] Performance benchmark: sub-100ms word loading from PostgreSQL
+  - [ ] Test user experience: immediate word display, no loading delays
   - [ ] Architect review approved
-  - [ ] End-to-end testing passed
-  - [ ] Documentation updated (replit.md + PLAN.md)
+  - [ ] Documentation updated (deployment instructions for data pre-load)
 
 ### For Word History Feature (BLOCKED - Cannot Start Until Migration Complete)
 - [ ] Word history tracking implemented in localStorage
