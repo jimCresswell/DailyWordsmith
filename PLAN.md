@@ -50,7 +50,7 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 ## 🎯 Current Goals
 
 ### 🚨 PRIMARY GOAL: Etymology Data Source Migration (BLOCKING)
-**Objective**: Migrate from Dictionary API to Wiktionary/Kaikki dataset to make the app functional
+**Objective**: Migrate from Dictionary API to Wiktionary REST API to make the app functional
 
 **CRITICAL RATIONALE**:
 - **App is currently non-functional**: Core value proposition is "etymology-first learning"
@@ -59,13 +59,26 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - **All other work is blocked**: Cannot build features on top of incomplete core data
 - **Risk of wasted effort**: Features built now will need rework after migration
 
+**Migration Approach**:
+- **Primary**: Wiktionary REST API (`/api/rest_v1/page/definition/{word}`)
+- **Fallback**: Wiktionary Action API (wikitext parsing for etymology gaps)
+- **Scale fit**: 2,320 words = ~30-40 min at 1-2 req/sec (manageable with API)
+- **Validation**: Test with 50-100 sample words first to confirm viability
+- **API Etiquette**: Wikimedia-compliant User-Agent + HTTP caching (ETag/Last-Modified)
+- **Share-Alike**: Backend API serving adapted text must remain CC BY-SA 3.0 compatible
+
 **Success Criteria** (MUST complete before any other work):
-- [ ] **Week 1**: Evaluate Wiktionary/Kaikki dataset against our 2,320 curated words
-- [ ] **Week 1**: Generate coverage report (target: ≥95% words have etymology)
+- [ ] **Week 1**: Test Wiktionary REST API with 50-100 sample words from curated list
+- [ ] **Week 1**: Measure etymology coverage rate (target: ≥95%)
 - [ ] **Week 1**: Assess data quality (educational etymologies, not "unknown origin")
-- [ ] **Week 2**: Design migration strategy (schema changes, caching, rollout)
-- [ ] **Week 2**: Write and test migration script
-- [ ] **Week 3**: Execute migration with database backup
+- [ ] **Week 1**: Test Action API fallback for words missing etymology in REST
+- [ ] **Week 1**: Go/no-go decision for full migration
+- [ ] **Week 2**: Implement rate-limited API client (1-2 req/sec with exponential backoff)
+- [ ] **Week 2**: Update schema to include source URL, license, retrieval timestamp
+- [ ] **Week 2**: Build extraction/parsing logic with retry mechanisms
+- [ ] **Week 2**: Test migration script on 100 words
+- [ ] **Week 3**: Execute full migration for all 2,320 words (with backup)
+- [ ] **Week 3**: Add attribution UI (source link + CC BY-SA 3.0 notice on word cards)
 - [ ] **Week 3**: Validate ≥95% etymology coverage in production
 - [ ] **Week 3**: Update/remove fallback messages
 - [ ] **Week 3**: Architect review and approval
@@ -76,6 +89,7 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - Etymology quality is educational (explains word origins, not just "unknown")
 - Caching architecture maintains performance (90-day TTL, <500ms p95)
 - Fallback mechanism works for remaining <5% missing etymologies
+- **Attribution compliant**: All word cards display Wiktionary source link + CC BY-SA 3.0 license
 
 ---
 
@@ -129,6 +143,17 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - [x] Missing words tracked in `missing_definitions` table
 - [x] No duplicate words in database
 - [ ] **PENDING**: >95% words have etymology data (blocked by Wiktionary migration)
+- [ ] **NEW**: Word source URL stored with each definition
+- [ ] **NEW**: Retrieval timestamp tracked for each word
+- [ ] **NEW**: License information stored in database schema
+
+### Licensing & Attribution
+- [ ] **NEW**: Source link to Wiktionary displayed on every word card
+- [ ] **NEW**: CC BY-SA 3.0 license notice shown on word cards
+- [ ] **NEW**: Attribution HTML includes clickable link to original page
+- [ ] **NEW**: License compliance documented and validated
+- [ ] **NEW**: Share-alike compliance: Backend API serving adapted text documented as CC BY-SA 3.0
+- [ ] **NEW**: Wikimedia-compliant User-Agent configured in API client
 
 ### User Experience
 - [x] Word loads in <2 seconds (including API call)
@@ -176,26 +201,35 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
   - Page reload persistence
 
 ### For Wiktionary Migration (CURRENT PHASE - BLOCKING ALL OTHER WORK)
-- [ ] **WEEK 1 DELIVERABLES**:
-  - [ ] Download Wiktionary/Kaikki dataset
-  - [ ] Parse data format and understand structure
-  - [ ] Match against our 2,320 curated words
-  - [ ] Generate coverage report (% with etymology)
-  - [ ] Assess etymology quality (sample 50 random entries)
+- [ ] **WEEK 1 DELIVERABLES** (API Viability Testing):
+  - [ ] Test Wiktionary REST API (`/api/rest_v1/page/definition/{word}`) with 50-100 sample words
+  - [ ] Measure etymology coverage rate from REST API
+  - [ ] Test Action API fallback for words missing etymology in REST
+  - [ ] Assess etymology quality (sample 50 random entries for educational value)
+  - [ ] Generate coverage report showing % with complete data
+  - [ ] Document API response format and parsing requirements
+  - [ ] Make go/no-go decision for full API migration
   - [ ] Document findings in PLAN.md
-- [ ] **WEEK 2 DELIVERABLES**:
-  - [ ] Design migration strategy (schema, caching, rollout)
-  - [ ] Write migration script
-  - [ ] Test migration on sample data (100 words)
-  - [ ] Backup current database
-- [ ] **WEEK 3 DELIVERABLES**:
-  - [ ] Execute full migration (2,320 words)
-  - [ ] Validate ≥95% etymology coverage
-  - [ ] Update fallback messages
-  - [ ] Performance benchmark (no regression)
+- [ ] **WEEK 2 DELIVERABLES** (Implementation):
+  - [ ] Implement rate-limited HTTP client (1-2 req/sec, token bucket algorithm)
+  - [ ] Add exponential backoff with jitter for 429/5xx errors
+  - [ ] Update database schema: add `source_url`, `retrieved_at`, `license` fields
+  - [ ] Build REST API parser (extract definitions, etymology, pronunciation, examples)
+  - [ ] Build Action API fallback parser (parse wikitext for etymology sections)
+  - [ ] Write migration script with progress tracking and error handling
+  - [ ] Test migration script on 100 words
+  - [ ] Backup current database before migration
+- [ ] **WEEK 3 DELIVERABLES** (Execution & Validation):
+  - [ ] Execute full migration for all 2,320 words (~30-40 min runtime)
+  - [ ] Validate ≥95% etymology coverage in database
+  - [ ] Add attribution UI component (source link + CC BY-SA 3.0 notice)
+  - [ ] Integrate attribution component into word display
+  - [ ] Update/remove fallback messages for missing etymologies
+  - [ ] Performance benchmark (confirm no regression, target <500ms p95)
+  - [ ] License compliance validation (all requirements met)
   - [ ] Architect review approved
   - [ ] End-to-end testing passed
-  - [ ] Documentation updated
+  - [ ] Documentation updated (replit.md + PLAN.md)
 
 ### For Word History Feature (BLOCKED - Cannot Start Until Migration Complete)
 - [ ] Word history tracking implemented in localStorage
@@ -520,6 +554,20 @@ test -f server/data/curated-words-merged.json && \
 
 ## 📝 Change Log
 
+### v0.4.1 - API-First Migration Strategy (November 12, 2025)
+**Migration Approach Decision**: Switched to Wiktionary REST API instead of bulk dumps
+
+**Technical Decision**:
+- **Approach**: REST API + Action API fallback (not Kaikki dumps)
+- **Rationale**: 2,320 words is manageable scale for API approach (~30-40 min runtime)
+- **Benefits**: Simpler implementation, always-current data, easier to maintain
+- **Trade-offs**: Requires rate limiting, but well worth the simplicity
+
+**Updated 3-Week Plan**:
+- Week 1: Test REST API viability with 50-100 sample words
+- Week 2: Build rate-limited API client and migration script
+- Week 3: Execute full migration + implement attribution UI
+
 ### v0.4.0 - CRITICAL RE-PRIORITIZATION (November 12, 2025)
 **Status Change**: App marked as NON-FUNCTIONAL due to missing etymology data
 
@@ -527,7 +575,7 @@ test -f server/data/curated-words-merged.json && \
 - Recognized app cannot fulfill core promise without etymology data
 - Re-prioritized Wiktionary migration from "secondary" to "PRIMARY BLOCKING" goal
 - All feature work (word history, performance, polish) now blocked until data source fixed
-- 3-week sprint plan created for dataset evaluation and migration
+- 3-week sprint plan created for data source migration
 
 **Rationale**:
 - Core value proposition: "etymology-first learning"
@@ -535,10 +583,10 @@ test -f server/data/curated-words-merged.json && \
 - Risk: Building features on incomplete data leads to rework
 - Decision: Data first, features second
 
-**Next Steps** (see Next Actions section):
-- Week 1: Evaluate Wiktionary/Kaikki dataset
-- Week 2: Design and test migration
-- Week 3: Execute migration, restore app functionality
+**Critical Requirements Added**:
+- Attribution compliance (CC BY-SA 3.0 license)
+- Source URL and retrieval timestamp tracking
+- Clickable Wiktionary links on all word cards
 
 ### v0.3.1 - Word History Feature Planning (November 12, 2025)
 - Added word history to requirements (3-tab layout)
@@ -573,75 +621,101 @@ test -f server/data/curated-words-merged.json && \
 ## 🚀 Next Actions (Re-Sequenced - Data First)
 
 ### 🚨 WEEK 1 (IMMEDIATE - BLOCKING PRIORITY)
-**Wiktionary/Kaikki Dataset Evaluation**
+**Wiktionary REST API Viability Testing**
 
 **Monday-Tuesday**:
-1. Research and download Wiktionary/Kaikki dataset
-   - Identify correct data source (Kaikki JSON dumps recommended)
-   - Download English etymology data
-   - Understand data format and structure
+1. Set up API client and test infrastructure
+   - Implement basic HTTP client with User-Agent header
+   - Test REST API endpoint: `GET https://en.wiktionary.org/api/rest_v1/page/definition/{word}`
+   - Test Action API endpoint for fallback: `GET https://en.wiktionary.org/w/api.php?action=query&prop=revisions...`
+   - Understand response formats (JSON structure from both endpoints)
 
 **Wednesday-Thursday**:
-2. Parse and match against curated word list
-   - Write script to parse Kaikki format
-   - Match against our 2,320 curated words
-   - Generate coverage report (% with etymology)
+2. Test with sample words and measure coverage
+   - Select 50-100 diverse words from curated list (various POS, difficulty levels)
+   - Fetch data from REST API for each word
+   - For words missing etymology in REST, test Action API fallback
+   - Track coverage metrics: % with definition, % with etymology, % with examples
+   - Generate coverage report
 
 **Friday**:
-3. Quality assessment and documentation
-   - Sample 50 random etymologies for quality review
+3. Quality assessment and go/no-go decision
+   - Sample 50 random etymologies for educational quality review
    - Assess if etymologies are educational vs "unknown origin"
+   - Evaluate API reliability and response times
+   - Document API response format and parsing requirements
+   - Make go/no-go decision for full API migration
    - Document findings in PLAN.md
-   - Make go/no-go decision for migration
 
-**Week 1 Deliverable**: Coverage report + quality assessment + migration decision
+**Week 1 Deliverable**: Coverage report + quality assessment + API viability decision
 
 ---
 
-### WEEK 2 (CONTINGENT - Assuming Week 1 Go Decision)
-**Migration Strategy and Script Development**
+### WEEK 2 (IMPLEMENTATION - Assuming Week 1 Go Decision)
+**API Client and Migration Script Development**
 
-1. Design migration strategy
-   - Schema changes needed (if any)
-   - Caching strategy updates
-   - Rollout plan (all at once vs phased)
-   
-2. Write migration script
-   - Parse Kaikki data
-   - Transform to our schema format
-   - Handle missing data gracefully
-   
-3. Test on sample data
-   - Migrate 100 words as proof of concept
-   - Validate data integrity
+1. Implement production-grade API client
+   - Wikimedia-compliant User-Agent: "Lexicon/1.0 (contact: [project-url])"
+   - Rate limiter with token bucket (1-2 req/sec)
+   - Exponential backoff with jitter for 429/503/502 errors
+   - Retry logic (max 5 attempts with timeout)
+   - HTTP conditional requests (ETag/If-None-Match, Last-Modified/If-Modified-Since)
+   - Raw response persistence for potential reprocessing
+   - Progress tracking and logging
+
+2. Update database schema
+   - Add fields: `source_url` (TEXT), `retrieved_at` (TIMESTAMP), `license` (TEXT)
+   - Run migrations safely
+   - Test schema changes on development database
+
+3. Build data extraction and parsing
+   - REST API parser: extract definitions, etymology, pronunciation, examples
+   - Action API fallback parser: parse wikitext for etymology sections
+   - Handle English language filtering
+   - Normalize and validate extracted data
+
+4. Write and test migration script
+   - Orchestrate API calls with rate limiting
+   - Transform API responses to database schema
+   - Handle errors gracefully (log and continue)
+   - Test on 100 sample words
    - Backup current database
 
-**Week 2 Deliverable**: Tested migration script + database backup
+**Week 2 Deliverable**: Production-ready migration script + tested on 100 words + database backup
 
 ---
 
 ### WEEK 3 (EXECUTION - Restores App Functionality)
-**Full Migration Execution**
+**Full Migration and Attribution Implementation**
 
-1. Execute migration
-   - Run migration script for all 2,320 words
-   - Monitor for errors
-   
+1. Execute full migration
+   - Run migration script for all 2,320 words (~30-40 min runtime)
+   - Monitor progress and handle errors
+   - Log API failures and retry statistics
+
 2. Validation
-   - Verify ≥95% etymology coverage
-   - Sample quality check (50 random entries)
-   - Performance benchmark (no regression)
-   
-3. UI updates
-   - Update/remove fallback messages
-   - Verify etymology display works
-   
-4. Testing and approval
-   - End-to-end testing
-   - Architect review
-   - Document results
+   - Verify ≥95% etymology coverage in database
+   - Sample quality check (50 random entries for educational value)
+   - Performance benchmark (confirm <500ms p95, no regression)
 
-**Week 3 Deliverable**: **APP NOW FUNCTIONAL** - ≥95% words have etymology
+3. Attribution UI implementation
+   - Create Attribution component (source link + CC BY-SA 3.0 notice)
+   - Integrate into word display card
+   - Format: "Source: [word - Wiktionary](url). Text available under CC BY-SA 3.0"
+   - Test license compliance requirements
+
+4. UI updates and finalization
+   - Update/remove fallback messages for missing etymologies
+   - Verify etymology display works with real data
+   - Test attribution links (clickable, correct URLs)
+
+5. Testing and approval
+   - End-to-end testing with real migrated data
+   - License compliance validation
+   - Architect review and approval
+   - Document results in PLAN.md
+
+**Week 3 Deliverable**: **APP NOW FUNCTIONAL** - ≥95% etymology coverage + full attribution compliance
 
 ---
 
