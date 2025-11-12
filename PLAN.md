@@ -1,7 +1,7 @@
 # Lexicon - Living Plan Document
 
 **Last Updated**: November 12, 2025  
-**Status**: Etymology-focused redesign complete, word history feature pending
+**Status**: App non-functional - BLOCKED on etymology data source migration
 
 ---
 
@@ -49,16 +49,45 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 
 ## 🎯 Current Goals
 
-### Primary Goal: Word History Feature
+### 🚨 PRIMARY GOAL: Etymology Data Source Migration (BLOCKING)
+**Objective**: Migrate from Dictionary API to Wiktionary/Kaikki dataset to make the app functional
+
+**CRITICAL RATIONALE**:
+- **App is currently non-functional**: Core value proposition is "etymology-first learning"
+- **Current data source fails**: Dictionary API provides <5% etymology coverage
+- **User experience is broken**: 95%+ words show "Etymology unavailable" fallback
+- **All other work is blocked**: Cannot build features on top of incomplete core data
+- **Risk of wasted effort**: Features built now will need rework after migration
+
+**Success Criteria** (MUST complete before any other work):
+- [ ] **Week 1**: Evaluate Wiktionary/Kaikki dataset against our 2,320 curated words
+- [ ] **Week 1**: Generate coverage report (target: ≥95% words have etymology)
+- [ ] **Week 1**: Assess data quality (educational etymologies, not "unknown origin")
+- [ ] **Week 2**: Design migration strategy (schema changes, caching, rollout)
+- [ ] **Week 2**: Write and test migration script
+- [ ] **Week 3**: Execute migration with database backup
+- [ ] **Week 3**: Validate ≥95% etymology coverage in production
+- [ ] **Week 3**: Update/remove fallback messages
+- [ ] **Week 3**: Architect review and approval
+- [ ] **Week 3**: End-to-end testing confirms app is functional
+
+**Definition of "Functional"**:
+- ≥95% of 2,320 words have complete data (definition + etymology + examples)
+- Etymology quality is educational (explains word origins, not just "unknown")
+- Caching architecture maintains performance (90-day TTL, <500ms p95)
+- Fallback mechanism works for remaining <5% missing etymologies
+
+---
+
+### Secondary Goal: Word History Feature (BLOCKED until migration complete)
 **Objective**: Implement automatic word view tracking and history browsing
 
-**Rationale**:
-- Users need to revisit words they've seen before
-- Manual bookmarking doesn't capture exploration patterns
-- History enables review without explicit curation
-- Complements bookmarks (history = everything, bookmarks = favorites)
+**Why This is Secondary**:
+- Adds value only after core content is working
+- Building on incomplete data risks rework
+- User trust requires delivering on core promise first
 
-**Success Criteria**:
+**Success Criteria** (only start after Primary Goal complete):
 - [ ] All viewed words automatically tracked in localStorage
 - [ ] History tab shows chronological list of viewed words
 - [ ] Search functionality within history (filter by word name)
@@ -66,26 +95,11 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - [ ] History persists across sessions
 - [ ] No performance degradation with large history (>1000 words)
 
-### Secondary Goal: Wiktionary Migration
-**Objective**: Migrate from Dictionary API (dictionaryapi.dev) to Wiktionary/Kaikki dataset
-
-**Rationale**:
-- Current Dictionary API has <5% etymology coverage (discovered via data analysis)
-- Most words display fallback: "Etymology unavailable — Wiktionary import in progress"
-- Wiktionary/Kaikki provides >95% etymology coverage for our word list
-
-**Success Criteria**:
-- [ ] Evaluate Wiktionary/Kaikki dataset against our 2,320 curated words
-- [ ] At least 95% of words have etymology data available
-- [ ] Etymology quality is educational and accurate (not just "unknown origin")
-- [ ] Integration maintains current caching architecture (90-day TTL)
-- [ ] Fallback mechanism still works if Wiktionary data unavailable
-
-### Tertiary Goals
+### Tertiary Goals (Post-Migration Polish)
 1. **Performance optimization**: Achieve ≤500ms word loading at p95
 2. **Accessibility validation**: Internal evaluation using Replit-available tools
 3. **Browser compatibility**: Test on Firefox Android, Safari iOS, Chrome desktop
-4. **Content quality**: Review etymology fallback messages for educational value
+4. **SEO and analytics**: Meta tags and privacy-respecting tracking
 
 ---
 
@@ -161,7 +175,29 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
   - Theme switching
   - Page reload persistence
 
-### For Word History Feature (Next Phase)
+### For Wiktionary Migration (CURRENT PHASE - BLOCKING ALL OTHER WORK)
+- [ ] **WEEK 1 DELIVERABLES**:
+  - [ ] Download Wiktionary/Kaikki dataset
+  - [ ] Parse data format and understand structure
+  - [ ] Match against our 2,320 curated words
+  - [ ] Generate coverage report (% with etymology)
+  - [ ] Assess etymology quality (sample 50 random entries)
+  - [ ] Document findings in PLAN.md
+- [ ] **WEEK 2 DELIVERABLES**:
+  - [ ] Design migration strategy (schema, caching, rollout)
+  - [ ] Write migration script
+  - [ ] Test migration on sample data (100 words)
+  - [ ] Backup current database
+- [ ] **WEEK 3 DELIVERABLES**:
+  - [ ] Execute full migration (2,320 words)
+  - [ ] Validate ≥95% etymology coverage
+  - [ ] Update fallback messages
+  - [ ] Performance benchmark (no regression)
+  - [ ] Architect review approved
+  - [ ] End-to-end testing passed
+  - [ ] Documentation updated
+
+### For Word History Feature (BLOCKED - Cannot Start Until Migration Complete)
 - [ ] Word history tracking implemented in localStorage
 - [ ] History tab added to UI (Current Word | Bookmarks | History)
 - [ ] PastWordsGrid component integrated and functional
@@ -174,20 +210,9 @@ Lexicon teaches advanced GRE/SAT vocabulary through **etymology-first learning**
 - [ ] End-to-end testing passed
 - [ ] Documentation updated (replit.md + PLAN.md)
 
-### For Wiktionary Migration (Future Phase)
-- [ ] Data source evaluation complete
-- [ ] Migration script written and tested
-- [ ] >95% etymology coverage achieved
-- [ ] Fallback message updated or removed
-- [ ] Cache invalidation strategy implemented
-- [ ] Performance benchmarked (no regression)
-- [ ] End-to-end testing passed
-- [ ] Architect review approved
-- [ ] Documentation updated
-
 ### For Production Readiness
+- [ ] **CRITICAL**: Wiktionary migration complete (≥95% etymology coverage)
 - [ ] Word history feature complete
-- [ ] Wiktionary migration complete
 - [ ] Accessibility audit passed (internal evaluation using Replit-available tools)
 - [ ] Performance validated: word loading ≤500ms at p95
 - [ ] Browser testing complete (Firefox Android, Safari iOS, Chrome desktop)
@@ -425,25 +450,52 @@ test -f server/data/curated-words-merged.json && \
 
 ## 🔄 Workflow State Machine
 
-### Current State: **ETYMOLOGY_REDESIGN_COMPLETE**
+### Current State: **APP_NON_FUNCTIONAL** (Blocked on data source)
 
 **Entry Criteria**: ✅
-- Etymology prominently displayed
+- Etymology prominently displayed (with fallback message)
 - Bookmarks feature implemented
-- "Learned" concept removed
 - Theme toggle working
 - Accessibility complete
+- **BLOCKER**: 95%+ words show "Etymology unavailable" - core functionality broken
 
-**Exit Criteria**: 🔄 (Next Phase)
-- Word history feature implemented
-- Wiktionary data source evaluated
-- Migration path documented
+**Exit Criteria**: 🚨 (CRITICAL PATH)
+- Wiktionary/Kaikki dataset evaluated (Week 1)
+- Migration strategy designed (Week 2)
+- Migration executed successfully (Week 3)
+- ≥95% etymology coverage achieved
 
-### Next State: **WORD_HISTORY_IMPLEMENTATION**
+### Next State: **WIKTIONARY_EVALUATION** (Week 1 - BLOCKING)
 
 **Entry Criteria**:
-- Etymology redesign complete
-- Plan updated with word history requirements
+- Plan re-prioritized to make migration #1
+- Team aligned on "data first, features second"
+
+**Exit Criteria**:
+- Downloaded and parsed Wiktionary/Kaikki dataset
+- Coverage report generated (≥95% target)
+- Data quality assessed
+- Migration path documented
+- Go/no-go decision made
+
+### Future State: **WIKTIONARY_MIGRATION** (Weeks 2-3 - BLOCKING)
+
+**Entry Criteria**:
+- Evaluation complete with positive results
+- Migration strategy approved
+
+**Exit Criteria**:
+- ≥95% words have etymology
+- App functionality restored
+- Fallback message updated/removed
+- Performance validated
+- **APP NOW FUNCTIONAL** - unblocks all other work
+
+### Future State: **WORD_HISTORY_IMPLEMENTATION** (Post-Migration)
+
+**Entry Criteria**:
+- Migration complete and validated
+- App is functional with full etymology coverage
 
 **Exit Criteria**:
 - Word history tracking implemented
@@ -451,32 +503,6 @@ test -f server/data/curated-words-merged.json && \
 - Search within history works
 - Architect review approved
 - Testing complete
-
-### Future State: **WIKTIONARY_EVALUATION**
-
-**Entry Criteria**:
-- Word history feature complete
-- Download Wiktionary/Kaikki dataset
-- Parse data format
-- Match against our 2,320 words
-
-**Exit Criteria**:
-- Coverage report generated (target: >95%)
-- Data quality assessed
-- Integration feasibility confirmed
-
-### Future State: **WIKTIONARY_INTEGRATED**
-
-**Entry Criteria**:
-- Migration script written
-- Database schema updated (if needed)
-- Caching strategy adapted
-
-**Exit Criteria**:
-- >95% words have etymology
-- Fallback message updated/removed
-- Performance validated
-- End-to-end testing passed
 
 ### Final State: **PRODUCTION_READY**
 
@@ -494,12 +520,31 @@ test -f server/data/curated-words-merged.json && \
 
 ## 📝 Change Log
 
-### v0.4.0 - Word History Feature (Upcoming)
-- Add automatic word view tracking
-- Implement History tab with 3-tab layout (Current Word | Bookmarks | History)
-- Integrate PastWordsGrid component with search
-- Enable history persistence in localStorage
-- Full keyboard accessibility for history navigation
+### v0.4.0 - CRITICAL RE-PRIORITIZATION (November 12, 2025)
+**Status Change**: App marked as NON-FUNCTIONAL due to missing etymology data
+
+**Strategic Shift**:
+- Recognized app cannot fulfill core promise without etymology data
+- Re-prioritized Wiktionary migration from "secondary" to "PRIMARY BLOCKING" goal
+- All feature work (word history, performance, polish) now blocked until data source fixed
+- 3-week sprint plan created for dataset evaluation and migration
+
+**Rationale**:
+- Core value proposition: "etymology-first learning"
+- Current reality: 95%+ words show "Etymology unavailable" fallback
+- Risk: Building features on incomplete data leads to rework
+- Decision: Data first, features second
+
+**Next Steps** (see Next Actions section):
+- Week 1: Evaluate Wiktionary/Kaikki dataset
+- Week 2: Design and test migration
+- Week 3: Execute migration, restore app functionality
+
+### v0.3.1 - Word History Feature Planning (November 12, 2025)
+- Added word history to requirements (3-tab layout)
+- Designed localStorage tracking for all viewed words
+- Integrated PastWordsGrid component into plan
+- **BLOCKED**: Implementation deferred until etymology data fixed
 
 ### v0.3.0 - Etymology-Focused Redesign (November 12, 2025)
 - Discovered Dictionary API has <5% etymology coverage
@@ -525,52 +570,97 @@ test -f server/data/curated-words-merged.json && \
 
 ---
 
-## 🚀 Next Actions
+## 🚀 Next Actions (Re-Sequenced - Data First)
 
-### Immediate (This Week)
-1. **Implement Word History Feature**
-   - Add History tab to UI (3-tab layout)
-   - Implement word view tracking in localStorage
-   - Integrate PastWordsGrid component
-   - Add search functionality
-   - Test history persistence
+### 🚨 WEEK 1 (IMMEDIATE - BLOCKING PRIORITY)
+**Wiktionary/Kaikki Dataset Evaluation**
+
+**Monday-Tuesday**:
+1. Research and download Wiktionary/Kaikki dataset
+   - Identify correct data source (Kaikki JSON dumps recommended)
+   - Download English etymology data
+   - Understand data format and structure
+
+**Wednesday-Thursday**:
+2. Parse and match against curated word list
+   - Write script to parse Kaikki format
+   - Match against our 2,320 curated words
+   - Generate coverage report (% with etymology)
+
+**Friday**:
+3. Quality assessment and documentation
+   - Sample 50 random etymologies for quality review
+   - Assess if etymologies are educational vs "unknown origin"
+   - Document findings in PLAN.md
+   - Make go/no-go decision for migration
+
+**Week 1 Deliverable**: Coverage report + quality assessment + migration decision
+
+---
+
+### WEEK 2 (CONTINGENT - Assuming Week 1 Go Decision)
+**Migration Strategy and Script Development**
+
+1. Design migration strategy
+   - Schema changes needed (if any)
+   - Caching strategy updates
+   - Rollout plan (all at once vs phased)
+   
+2. Write migration script
+   - Parse Kaikki data
+   - Transform to our schema format
+   - Handle missing data gracefully
+   
+3. Test on sample data
+   - Migrate 100 words as proof of concept
+   - Validate data integrity
+   - Backup current database
+
+**Week 2 Deliverable**: Tested migration script + database backup
+
+---
+
+### WEEK 3 (EXECUTION - Restores App Functionality)
+**Full Migration Execution**
+
+1. Execute migration
+   - Run migration script for all 2,320 words
+   - Monitor for errors
+   
+2. Validation
+   - Verify ≥95% etymology coverage
+   - Sample quality check (50 random entries)
+   - Performance benchmark (no regression)
+   
+3. UI updates
+   - Update/remove fallback messages
+   - Verify etymology display works
+   
+4. Testing and approval
+   - End-to-end testing
    - Architect review
+   - Document results
 
-2. **Performance baseline**
-   - Measure current word loading time (p95)
-   - Document in PLAN.md for future comparison
-   - Validate ≤500ms goal
+**Week 3 Deliverable**: **APP NOW FUNCTIONAL** - ≥95% words have etymology
 
-### Short-term (Next 2 Weeks)
-1. **Wiktionary migration**
-   - Evaluate Wiktionary/Kaikki dataset
-   - Write migration script
-   - Test on staging data
-   - Execute migration
-   - Validate etymology coverage
+---
 
-2. **Browser compatibility testing**
-   - Test on Firefox Android (primary)
-   - Test on Safari iOS (secondary)
-   - Test on Chrome desktop (tertiary)
-   - Document issues and fixes
+### POST-MIGRATION (Weeks 4+)
+**Feature Development (Unblocked)**
 
-3. **Accessibility audit**
-   - Run Lighthouse accessibility audits
-   - Keyboard navigation testing
-   - Document issues and fixes
-
-### Medium-term (Next Month)
-1. **Production deployment**
-   - Final performance validation
-   - SEO meta tags
-   - Basic analytics integration
+1. **Word History Feature** (Week 4-5)
+   - Now safe to build on complete data
+   - Add History tab, tracking, search
+   
+2. **Polish** (Week 6+)
+   - Performance optimization (≤500ms p95)
+   - Browser testing (Firefox Android, Safari iOS, Chrome)
+   - Accessibility audit (Lighthouse, keyboard nav)
+   - SEO and analytics
+   
+3. **Production Deployment** (Week 7)
+   - Final validation
    - Publish to replit.app
-
-2. **Post-launch** (optional)
-   - Collect user feedback
-   - Monitor performance metrics
-   - Prioritize improvements
 
 ---
 
