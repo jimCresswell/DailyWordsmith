@@ -67,9 +67,24 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Extract all data from REST API response
+ */
+interface RESTAPIExtractedData {
+  hasDefinition: boolean;
+  hasEtymology: boolean;
+  hasExamples: boolean;
+  hasPronunciation: boolean;
+  pronunciation?: string;
+  definitions: string[];
+  examples: string[];
+  partOfSpeech?: string;
+  error?: string;
+}
+
+/**
  * Test REST API endpoint for a single word
  */
-async function testRESTAPI(word: string): Promise<Partial<TestResult>> {
+async function testRESTAPI(word: string): Promise<RESTAPIExtractedData> {
   const url = `${REST_API_BASE}/${encodeURIComponent(word)}`;
   
   try {
@@ -80,6 +95,9 @@ async function testRESTAPI(word: string): Promise<Partial<TestResult>> {
         hasDefinition: false,
         hasEtymology: false,
         hasExamples: false,
+        hasPronunciation: false,
+        definitions: [],
+        examples: [],
         error: `HTTP ${response.status}`,
       };
     }
@@ -94,42 +112,118 @@ async function testRESTAPI(word: string): Promise<Partial<TestResult>> {
         hasDefinition: false,
         hasEtymology: false,
         hasExamples: false,
+        hasPronunciation: false,
+        definitions: [],
+        examples: [],
         error: 'No English entries found',
       };
     }
     
-    // Check for definitions
-    const hasDefinition = englishEntries.some(entry => 
-      entry.definitions && entry.definitions.length > 0
-    );
+    // Extract all definitions
+    const definitions: string[] = [];
+    const examples: string[] = [];
+    let partOfSpeech: string | undefined;
     
-    // Check for examples
-    const hasExamples = englishEntries.some(entry =>
-      entry.definitions.some(def => def.examples && def.examples.length > 0)
-    );
+    for (const entry of englishEntries) {
+      if (!partOfSpeech && entry.partOfSpeech) {
+        partOfSpeech = entry.partOfSpeech;
+      }
+      
+      for (const def of entry.definitions || []) {
+        if (def.definition) {
+          definitions.push(def.definition);
+        }
+        if (def.examples) {
+          examples.push(...def.examples);
+        }
+      }
+    }
     
-    // REST API typically doesn't include etymology - will need fallback
+    const hasDefinition = definitions.length > 0;
+    const hasExamples = examples.length > 0;
+    
+    // REST API doesn't include etymology - will need fallback
     const hasEtymology = false;
+    
+    // REST API doesn't include pronunciation in this endpoint
+    const hasPronunciation = false;
     
     return {
       hasDefinition,
       hasEtymology,
       hasExamples,
+      hasPronunciation,
+      definitions,
+      examples,
+      partOfSpeech,
     };
   } catch (error) {
     return {
       hasDefinition: false,
       hasEtymology: false,
       hasExamples: false,
+      hasPronunciation: false,
+      definitions: [],
+      examples: [],
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
 
 /**
- * Test Action API fallback for etymology
+ * Clean wikitext templates and formatting
  */
-async function testActionAPIForEtymology(word: string): Promise<{ etymology?: string; error?: string }> {
+function cleanWikitext(text: string): string {
+  let cleaned = text;
+  
+  // Extract text from common templates while preserving meaning
+  // {{term|...}} → just the term
+  cleaned = cleaned.replace(/\{\{term\|([^}|]+)(?:\|[^}]*)?\}\}/g, '$1');
+  
+  // {{m|lang|text}} → text (remove language code)
+  cleaned = cleaned.replace(/\{\{m\|[^|]+\|([^}|]+)(?:\|[^}]*)?\}\}/g, '$1');
+  
+  // {{l|lang|text}} → text (links)
+  cleaned = cleaned.replace(/\{\{l\|[^|]+\|([^}|]+)(?:\|[^}]*)?\}\}/g, '$1');
+  
+  // {{suffix|...}} → keep meaningful part
+  cleaned = cleaned.replace(/\{\{suffix\|([^}]+)\}\}/g, 'suffix: $1');
+  
+  // {{prefix|...}} → keep meaningful part  
+  cleaned = cleaned.replace(/\{\{prefix\|([^}]+)\}\}/g, 'prefix: $1');
+  
+  // {{compound|...}} → keep meaningful part
+  cleaned = cleaned.replace(/\{\{compound\|([^}]+)\}\}/g, 'compound: $1');
+  
+  // Generic template removal (for any remaining templates)
+  cleaned = cleaned.replace(/\{\{[^}]+\}\}/g, '');
+  
+  // Clean up wiki links [[text|display]] → display
+  cleaned = cleaned.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2');
+  
+  // Clean up simple wiki links [[text]] → text
+  cleaned = cleaned.replace(/\[\[([^\]]+)\]\]/g, '$1');
+  
+  // Remove HTML comments
+  cleaned = cleaned.replace(/<!--[\s\S]*?-->/g, '');
+  
+  // Clean up multiple spaces and newlines
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  // Remove leading/trailing punctuation artifacts
+  cleaned = cleaned.replace(/^[,;:\s]+|[,;:\s]+$/g, '');
+  
+  return cleaned;
+}
+
+/**
+ * Test Action API fallback for etymology and pronunciation
+ */
+async function testActionAPIForEtymology(word: string): Promise<{ 
+  etymology?: string; 
+  pronunciation?: string;
+  error?: string;
+}> {
   const params = new URLSearchParams({
     action: 'query',
     prop: 'revisions',
@@ -161,22 +255,34 @@ async function testActionAPIForEtymology(word: string): Promise<{ etymology?: st
     
     const wikitext = page.revisions?.[0]?.slots?.main?.['*'] || '';
     
-    // Very basic etymology extraction (will improve in Week 2)
-    const etymologyMatch = wikitext.match(/===Etymology===\s*\n([\s\S]*?)(?=\n===|$)/);
+    // Extract English section first
+    const englishMatch = wikitext.match(/==English==([\s\S]*?)(?:\n==[^=]|$)/);
+    const englishSection = englishMatch ? englishMatch[1] : wikitext;
+    
+    // Extract etymology (try numbered and unnumbered)
+    let etymology: string | undefined;
+    const etymologyMatch = englishSection.match(/===Etymology(?:\s+\d+)?===\s*\n([\s\S]*?)(?=\n===|$)/);
     
     if (etymologyMatch) {
-      const etymology = etymologyMatch[1].trim();
-      // Remove wikitext formatting for preview (basic cleanup)
-      const cleaned = etymology
-        .replace(/\{\{[^}]+\}\}/g, '') // Remove templates
-        .replace(/\[\[([^\]|]+)\|[^\]]+\]\]/g, '$1') // Simplify links
-        .replace(/\[\[([^\]]+)\]\]/g, '$1')
-        .trim();
-      
-      return { etymology: cleaned || undefined };
+      const rawEtymology = etymologyMatch[1].trim();
+      const cleaned = cleanWikitext(rawEtymology);
+      if (cleaned.length > 10) { // Ensure we got meaningful content
+        etymology = cleaned;
+      }
     }
     
-    return { etymology: undefined };
+    // Extract pronunciation (IPA)
+    let pronunciation: string | undefined;
+    const pronunciationMatch = englishSection.match(/===Pronunciation===\s*\n([\s\S]*?)(?=\n===|$)/);
+    
+    if (pronunciationMatch) {
+      const ipaMatch = pronunciationMatch[1].match(/\{\{IPA\|en\|([^}]+)\}\}/);
+      if (ipaMatch) {
+        pronunciation = ipaMatch[1].replace(/\|/g, ', ');
+      }
+    }
+    
+    return { etymology, pronunciation };
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Unknown error' };
   }
@@ -193,6 +299,7 @@ async function testWord(word: string): Promise<TestResult> {
   
   let usedFallback = false;
   let etymology: string | undefined;
+  let pronunciation: string | undefined;
   
   // If no etymology from REST, try Action API fallback
   if (!restResult.hasEtymology && restResult.hasDefinition) {
@@ -202,6 +309,9 @@ async function testWord(word: string): Promise<TestResult> {
     
     if (fallbackResult.etymology) {
       etymology = fallbackResult.etymology;
+    }
+    if (fallbackResult.pronunciation) {
+      pronunciation = fallbackResult.pronunciation;
     }
   }
   
@@ -217,6 +327,14 @@ async function testWord(word: string): Promise<TestResult> {
 }
 
 /**
+ * Randomly sample words from curated list
+ */
+function sampleWords(count: number): string[] {
+  const shuffled = [...curatedWords].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count).map(w => w.word);
+}
+
+/**
  * Main test function
  */
 async function main() {
@@ -226,28 +344,29 @@ async function main() {
   console.log(`User-Agent: ${USER_AGENT}`);
   console.log(`Rate limit: ${RATE_LIMIT_DELAY}ms between requests\n`);
   
-  // Start with small test set (3-5 words)
-  const testWords = ['ephemeral', 'gregarious', 'laconic', 'ubiquitous', 'verbose'];
+  // Get sample size from command line or default to 50
+  const sampleSize = process.argv[2] ? parseInt(process.argv[2]) : 50;
   
-  console.log(`Testing ${testWords.length} sample words...\n`);
+  // Sample words from curated list
+  const testWords = sampleWords(sampleSize);
+  
+  console.log(`Testing ${testWords.length} randomly sampled words from ${curatedWords.length} total...`);
+  console.log(`Estimated time: ~${Math.ceil(testWords.length * RATE_LIMIT_DELAY / 1000 / 60)} minutes\n`);
   
   const results: TestResult[] = [];
+  let progressCount = 0;
   
   for (const word of testWords) {
+    progressCount++;
+    console.log(`[${progressCount}/${testWords.length}] Testing: ${word}`);
+    
     const result = await testWord(word);
     results.push(result);
     
-    console.log(`  Definition: ${result.hasDefinition ? '✓' : '✗'}`);
-    console.log(`  Etymology: ${result.hasEtymology ? '✓' : '✗'}`);
-    console.log(`  Examples: ${result.hasExamples ? '✓' : '✗'}`);
-    console.log(`  Fallback used: ${result.usedFallback ? 'Yes' : 'No'}`);
+    console.log(`  ✓ Def: ${result.hasDefinition ? 'Y' : 'N'} | Etym: ${result.hasEtymology ? 'Y' : 'N'} | Ex: ${result.hasExamples ? 'Y' : 'N'} | Fallback: ${result.usedFallback ? 'Y' : 'N'}`);
     if (result.error) {
-      console.log(`  Error: ${result.error}`);
+      console.log(`  ✗ Error: ${result.error}`);
     }
-    if (result.etymology) {
-      console.log(`  Etymology preview: ${result.etymology.substring(0, 100)}...`);
-    }
-    console.log('');
     
     // Rate limiting
     await sleep(RATE_LIMIT_DELAY);
@@ -263,7 +382,7 @@ async function main() {
     errors: results.filter(r => r.error).length,
   };
   
-  console.log('='.repeat(60));
+  console.log('\n' + '='.repeat(60));
   console.log('COVERAGE STATISTICS');
   console.log('='.repeat(60));
   console.log(`Total words tested: ${stats.total}`);
@@ -272,6 +391,49 @@ async function main() {
   console.log(`With examples: ${stats.withExamples} (${(stats.withExamples / stats.total * 100).toFixed(1)}%)`);
   console.log(`Used fallback: ${stats.usedFallback} (${(stats.usedFallback / stats.total * 100).toFixed(1)}%)`);
   console.log(`Errors: ${stats.errors} (${(stats.errors / stats.total * 100).toFixed(1)}%)`);
+  console.log('');
+  
+  // Sample etymologies for quality review
+  const wordsWithEtymology = results.filter(r => r.etymology);
+  const sampleEtymologies = wordsWithEtymology.slice(0, 10);
+  
+  if (sampleEtymologies.length > 0) {
+    console.log('='.repeat(60));
+    console.log('SAMPLE ETYMOLOGIES (first 10)');
+    console.log('='.repeat(60));
+    sampleEtymologies.forEach((r, i) => {
+      console.log(`${i + 1}. ${r.word}:`);
+      console.log(`   ${r.etymology}\n`);
+    });
+  }
+  
+  // Words with errors
+  const wordsWithErrors = results.filter(r => r.error);
+  if (wordsWithErrors.length > 0) {
+    console.log('='.repeat(60));
+    console.log(`ERRORS (${wordsWithErrors.length} words)`);
+    console.log('='.repeat(60));
+    wordsWithErrors.slice(0, 20).forEach(r => {
+      console.log(`- ${r.word}: ${r.error}`);
+    });
+    if (wordsWithErrors.length > 20) {
+      console.log(`  ... and ${wordsWithErrors.length - 20} more`);
+    }
+    console.log('');
+  }
+  
+  // Assessment
+  console.log('='.repeat(60));
+  console.log('VIABILITY ASSESSMENT');
+  console.log('='.repeat(60));
+  const etymCoverage = stats.withEtymology / stats.total * 100;
+  if (etymCoverage >= 95) {
+    console.log(`✓ PASS: Etymology coverage (${etymCoverage.toFixed(1)}%) meets ≥95% requirement`);
+  } else if (etymCoverage >= 90) {
+    console.log(`⚠ BORDERLINE: Etymology coverage (${etymCoverage.toFixed(1)}%) is close to 95% target`);
+  } else {
+    console.log(`✗ FAIL: Etymology coverage (${etymCoverage.toFixed(1)}%) below 95% requirement`);
+  }
   console.log('');
 }
 
