@@ -75,4 +75,7 @@ export type Word = {
   definition: string;
   etymology?: string | null;
   examples?: string[] | null;
+  // Attribution fields for Wiktionary CC BY-SA 3.0
+  sourceUrl?: string | null;
+  license?: string | null;
 };

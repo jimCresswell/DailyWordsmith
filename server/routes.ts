@@ -114,6 +114,7 @@ async function getWordWithFreshDefinition(wordId: string): Promise<GetWordResult
         definition: existingDef.definition,
         etymology: existingDef.etymology, // May be null - WordCard shows fallback message
         examples: existingDef.examples,
+
       }
     };
   }
@@ -137,6 +138,8 @@ async function getWordWithFreshDefinition(wordId: string): Promise<GetWordResult
         definition: updatedDef.definition,
         etymology: updatedDef.etymology, // May be null - WordCard shows fallback message
         examples: updatedDef.examples,
+        sourceUrl: updatedDef.sourceUrl,
+        license: updatedDef.license,
       }
     };
   } else if (fetchResult.notFound) {
@@ -157,6 +160,7 @@ async function getWordWithFreshDefinition(wordId: string): Promise<GetWordResult
         definition: existingDef.definition,
         etymology: existingDef.etymology,
         examples: existingDef.examples,
+
       }
     };
   }

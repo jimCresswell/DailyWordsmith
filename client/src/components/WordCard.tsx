@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Volume2, Bookmark, RefreshCw } from "lucide-react";
+import { Volume2, Bookmark, RefreshCw, ExternalLink } from "lucide-react";
 import type { Word } from "@shared/schema";
 
 interface WordCardProps {
@@ -105,6 +105,32 @@ export function WordCard({
           </Button>
         )}
       </div>
+
+      {/* Wiktionary Attribution */}
+      {word.sourceUrl && (
+        <div className="pt-4 border-t">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span>Source:</span>
+              <a 
+                href={word.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-primary hover:underline"
+                data-testid="link-wiktionary-source"
+              >
+                Wiktionary
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+            {word.license && (
+              <span className="text-xs" data-testid="text-license">
+                {word.license}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
